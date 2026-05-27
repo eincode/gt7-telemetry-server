@@ -1,0 +1,15 @@
+services:
+  server:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      BROADCAST_HZ: "60"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
