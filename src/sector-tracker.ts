@@ -1,5 +1,5 @@
 import type { ComputedTrack, Vec3, SectorBoundary } from './recorder/types';
-import type { SectorStatus } from './types';
+import type { SectorStatus, SessionMode } from './types';
 
 // ── Vec3 math ──────────────────────────────────────────────────────────────────
 
@@ -41,6 +41,9 @@ export interface DriverSectorState {
   lastLapSectors: number[];       // most recently completed full lap
   personalBestSectors: number[];  // per-sector personal bests across all laps
   arcFraction: number;            // 0–1 position along the ideal line
+  // Sector times from the single fastest lap, stored separately per session mode
+  bestLapSectorsByMode:  Partial<Record<SessionMode, number[]>>;
+  bestLapTimeByMode:     Partial<Record<SessionMode, number>>;
 }
 
 // Session-level best per sector across all drivers — reset on clearAll()
@@ -60,6 +63,8 @@ function getOrCreate(driverId: number): DriverSectorState {
       lastLapSectors: [],
       personalBestSectors: [],
       arcFraction: 0,
+      bestLapSectorsByMode: {},
+      bestLapTimeByMode: {},
     };
     driverStates.set(driverId, state);
   }
@@ -75,6 +80,10 @@ export function clearAll(): void {
   sessionBestSectors.length = 0;
 }
 
+export function getBestLapSectors(driverId: number, mode: SessionMode): number[] {
+  return driverStates.get(driverId)?.bestLapSectorsByMode[mode] ?? [];
+}
+
 export function update(
   driverId: number,
   track: ComputedTrack,
@@ -82,6 +91,7 @@ export function update(
   currentLapT: number | undefined,
   lapCount: number,
   lastLaptime: number,
+  mode?: SessionMode,
 ): void {
   const { sectorCount, sectorBoundaries, idealLine } = track;
   const state = getOrCreate(driverId);
@@ -114,6 +124,14 @@ export function update(
         }
         if (sessionBestSectors[s] === undefined || t < sessionBestSectors[s]) {
           sessionBestSectors[s] = t;
+        }
+      }
+      // Update best-lap sectors for the current mode (tied to the game's official laptime)
+      if (mode && lastLaptime > 0 && lastLaptime < 600_000) {
+        const prevBest = state.bestLapTimeByMode[mode];
+        if (prevBest === undefined || lastLaptime < prevBest) {
+          state.bestLapTimeByMode[mode]  = lastLaptime;
+          state.bestLapSectorsByMode[mode] = [...state.currentLapSectors];
         }
       }
     }

@@ -15,7 +15,7 @@ export interface DriverState {
 const tokenToDriverId = new Map<string, number>();
 const drivers = new Map<number, DriverState>();
 
-export function registerDriver(driverId: number, carCode: number): string {
+export function registerDriver(driverId: number): string {
   const token = uuidv4();
 
   const existing = drivers.get(driverId);
@@ -23,7 +23,7 @@ export function registerDriver(driverId: number, carCode: number): string {
 
   drivers.set(driverId, {
     id: driverId,
-    carCode,
+    carCode: 0,   // populated from first telemetry packet
     token,
     ws: null,
     connected: false,
@@ -48,6 +48,12 @@ export function connectDriver(state: DriverState, ws: WebSocket): void {
   state.lastSeen = Date.now();
 }
 
+export function connectDriverMock(state: DriverState): void {
+  state.connected = true;
+  state.lastSeen  = Date.now();
+  // ws intentionally remains null — mock drivers have no WebSocket
+}
+
 export function disconnectDriver(state: DriverState): void {
   state.ws = null;
   state.connected = false;
@@ -55,6 +61,7 @@ export function disconnectDriver(state: DriverState): void {
 
 export function updatePacket(state: DriverState, packet: DriverPacket): void {
   state.lastSeen = Date.now();
+  state.carCode  = packet.carCode;   // promote from packet on every update
   state.telemetry = extractTelemetry(packet);
 }
 

@@ -23,6 +23,10 @@ export function getTrack(): ComputedTrack | null {
   return activeTrack;
 }
 
+export function setTrack(track: ComputedTrack): void {
+  activeTrack = track;
+}
+
 export function clearTrack(): void {
   activeTrack = null;
 }

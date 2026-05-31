@@ -145,7 +145,7 @@ function redraw(
   for (const d of drivers) {
     const entry = roster?.roster.find((r) => r.id === d.id);
     const name  = entry
-      ? `${entry.name}  ${C.dim('[' + entry.category + ']')}`
+      ? `${entry.name}  ${C.dim('[' + entry.country + ']')}`
       : `Driver ${d.id}`;
     out += div + '\n';
     out += renderDriver(d, name, now);

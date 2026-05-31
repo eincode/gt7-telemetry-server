@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-import { Command } from 'commander';
+import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import { connectOverlay } from './overlay-client';
@@ -9,7 +9,7 @@ import { startMonitor } from './monitor';
 import { startSectorTester } from './sector-tester';
 import type { LineKind, ComputedTrack } from './types';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────────
 
 const TRACKS_ROOT = path.join(process.cwd(), 'tracks');
 const LINES: LineKind[] = ['left', 'right', 'ideal'];
@@ -18,239 +18,418 @@ const LINE_FILES: Record<LineKind, string> = {
   right: 'right-edge.json',
   ideal: 'ideal-line.json',
 };
+const DEFAULT_URL = 'ws://localhost:3000/overlay';
+
+// ── ANSI ──────────────────────────────────────────────────────────────────────
+
+const C = {
+  bold:   (s: string) => `\x1b[1m${s}\x1b[0m`,
+  dim:    (s: string) => `\x1b[2m${s}\x1b[0m`,
+  green:  (s: string) => `\x1b[32m${s}\x1b[0m`,
+  yellow: (s: string) => `\x1b[33m${s}\x1b[0m`,
+  cyan:   (s: string) => `\x1b[36m${s}\x1b[0m`,
+  red:    (s: string) => `\x1b[31m${s}\x1b[0m`,
+};
+
+// ── readline helpers ──────────────────────────────────────────────────────────
+
+// ── readline / line-queue ─────────────────────────────────────────────────────
+//
+// Line-queue pattern: buffer every incoming line immediately on the 'line'
+// event. ask() dequeues synchronously when lines are buffered (piped input)
+// or waits for the next keypress (interactive terminal). This avoids the
+// piped-stdin race where readline fires 'close' before async continuations run.
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+const lineQueue: string[]                     = [];
+const lineWaiters: Array<(l: string) => void> = [];
+
+rl.on('line', (line) => {
+  if (lineWaiters.length > 0) {
+    lineWaiters.shift()!(line);
+  } else {
+    lineQueue.push(line);
+  }
+});
+
+function nextLine(prompt: string): Promise<string> {
+  process.stdout.write(`  ${prompt}: `);
+  return new Promise((resolve) => {
+    if (lineQueue.length > 0) {
+      const line = lineQueue.shift()!;
+      process.stdout.write(line + '\n');   // echo for piped input (no TTY auto-echo)
+      resolve(line);
+    } else {
+      lineWaiters.push(resolve);
+    }
+  });
+}
+
+function ask(prompt: string, defaultValue = ''): Promise<string> {
+  const hint = defaultValue ? C.dim(` [${defaultValue}]`) : '';
+  return nextLine(`${prompt}${hint}`).then((a) => a.trim() || defaultValue);
+}
+
+function choose(title: string, options: string[]): Promise<number> {
+  process.stdout.write(`\n  ${C.bold(title)}\n`);
+  options.forEach((opt, i) => {
+    process.stdout.write(`    ${C.cyan(String(i + 1))}  ${opt}\n`);
+  });
+  process.stdout.write('\n');
+
+  const tryRead = (): Promise<number> =>
+    nextLine(`Choice [1-${options.length}]`).then((answer) => {
+      const n = parseInt(answer.trim(), 10);
+      if (n >= 1 && n <= options.length) return n - 1;
+      process.stdout.write(C.red(`  Please enter a number between 1 and ${options.length}.\n`));
+      return tryRead();
+    });
+
+  return tryRead();
+}
+
+// ── Server session helpers ────────────────────────────────────────────────────
+
+function wsToHttpBase(wsUrl: string): string {
+  return wsUrl.replace(/^ws/, 'http').replace(/\/overlay$/, '');
+}
+
+async function fetchRecordingSession(wsUrl = DEFAULT_URL): Promise<{ trackId: string } | null> {
+  try {
+    const res  = await fetch(`${wsToHttpBase(wsUrl)}/session`);
+    if (!res.ok) return null;
+    const data = await res.json() as { session?: { trackId?: string; isRecording?: boolean } };
+    const s = data.session;
+    return s?.isRecording && s.trackId ? { trackId: s.trackId } : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Track helpers ─────────────────────────────────────────────────────────────
+
+function getTracksOnDisk(): string[] {
+  if (!fs.existsSync(TRACKS_ROOT)) return [];
+  return fs.readdirSync(TRACKS_ROOT, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .sort();
+}
+
+function getProcessedTracks(): string[] {
+  return getTracksOnDisk().filter((id) =>
+    fs.existsSync(path.join(TRACKS_ROOT, id, 'track.json')),
+  );
+}
 
 function trackDir(trackId: string): string {
   return path.join(TRACKS_ROOT, trackId);
 }
 
-function die(msg: string): never {
-  process.stderr.write(`\x1b[31mError:\x1b[0m ${msg}\n`);
-  process.exit(1);
+// Pick a track from existing list or type a new one.
+// Pass `processedOnly: true` to restrict to tracks that have track.json.
+async function pickTrack(opts: { processedOnly?: boolean } = {}): Promise<string> {
+  const tracks = opts.processedOnly ? getProcessedTracks() : getTracksOnDisk();
+
+  if (tracks.length === 0) {
+    if (opts.processedOnly) {
+      process.stdout.write(C.yellow('\n  No processed tracks found — run "Process track" first.\n\n'));
+      rl.close();
+      process.exit(1);
+    }
+    return ask('Track ID');
+  }
+
+  const labels  = tracks.map((id) => {
+    const dir    = path.join(TRACKS_ROOT, id);
+    const linesN = LINES.filter((l) => fs.existsSync(path.join(dir, LINE_FILES[l]))).length;
+    const processed = fs.existsSync(path.join(dir, 'track.json'));
+    const badge  = processed ? C.green('✓ processed') : C.dim(`${linesN}/3 lines`);
+    return `${id.padEnd(28)} ${badge}`;
+  });
+
+  if (!opts.processedOnly) {
+    labels.push('Enter a new track ID…');
+  }
+
+  const idx = await choose('Select track', labels);
+
+  if (!opts.processedOnly && idx === tracks.length) {
+    return ask('Track ID');
+  }
+  return tracks[idx];
 }
 
-// ── Program ───────────────────────────────────────────────────────────────────
+// ── Action: record ────────────────────────────────────────────────────────────
 
-const program = new Command();
-program
-  .name('record')
-  .description('GT7 track line recorder')
-  .version('0.1.0');
+async function runRecord(): Promise<void> {
+  process.stdout.write(`\n${C.bold('── Record a line')} ${C.dim('────────────────────────────────')}\n`);
 
-// ── record ────────────────────────────────────────────────────────────────────
+  // If the web recorder started a session, pick up its track ID automatically
+  const activeSession = await fetchRecordingSession();
+  let trackId: string;
+  if (activeSession) {
+    process.stdout.write(`\n  ${C.green('✓')} Active recording session — track: ${C.yellow(activeSession.trackId)}\n`);
+    trackId = activeSession.trackId;
+  } else {
+    trackId = await pickTrack();
+  }
 
-program
-  .command('record')
-  .description('Record one edge/line for a track (exactly 1 lap)')
-  .requiredOption('--track <id>', 'track identifier, e.g. trial-mountain')
-  .requiredOption('--line <type>', 'line to record: left | right | ideal')
-  .requiredOption('--driver <id>', 'driver ID (number)', parseInt)
-  .option('--url <url>', 'relay overlay WebSocket URL', 'ws://localhost:3000/overlay')
-  .action((opts: { track: string; line: string; driver: number; url: string }) => {
-    if (!(['left', 'right', 'ideal'] as string[]).includes(opts.line)) {
-      die(`--line must be left, right, or ideal (got "${opts.line}")`);
-    }
-    const line = opts.line as LineKind;
-    const outputDir = trackDir(opts.track);
+  const lineIdx = await choose('Line type', [
+    `left   ${C.dim('— hug the left edge for one lap')}`,
+    `right  ${C.dim('— hug the right edge for one lap')}`,
+    `ideal  ${C.dim('— drive your racing line (note the sector times!)')}`,
+  ]);
+  const line = LINES[lineIdx];
 
-    process.stdout.write(`\x1b[1mGT7 Track Recorder\x1b[0m\n`);
-    process.stdout.write(`  Track  : \x1b[33m${opts.track}\x1b[0m\n`);
-    process.stdout.write(`  Line   : \x1b[33m${line}\x1b[0m\n`);
-    process.stdout.write(`  Driver : \x1b[33m${opts.driver}\x1b[0m\n`);
-    process.stdout.write(`  Server : \x1b[2m${opts.url}\x1b[0m\n\n`);
-    process.stdout.write(`Connecting...\n`);
+  const driverStr = await ask('Driver ID');
+  const driverId  = parseInt(driverStr, 10);
+  if (isNaN(driverId) || driverId < 0) {
+    process.stderr.write(C.red('  Driver ID must be a non-negative integer.\n'));
+    return;
+  }
 
-    const recorder = createRecorder({ trackId: opts.track, line, driverId: opts.driver, outputDir });
+  const url = await ask('Server URL', DEFAULT_URL);
+
+  const outputDir = trackDir(trackId);
+  process.stdout.write(`\n${C.bold('GT7 Track Recorder')}\n`);
+  process.stdout.write(`  Track  : ${C.yellow(trackId)}\n`);
+  process.stdout.write(`  Line   : ${C.yellow(line)}\n`);
+  process.stdout.write(`  Driver : ${C.yellow(String(driverId))}\n`);
+  process.stdout.write(`  Server : ${C.dim(url)}\n\n`);
+  process.stdout.write(`Connecting…\n`);
+
+  const recorder = createRecorder({ trackId, line, driverId, outputDir });
+
+  await new Promise<void>((resolve) => {
+    let ws: ReturnType<typeof connectOverlay>;
 
     recorder.onDone((file) => {
-      process.stdout.write(`\n\x1b[32mDone!\x1b[0m ${file.sampleCount} samples recorded.\n`);
+      process.stdout.write(`\n${C.green('Done!')} ${file.sampleCount} samples recorded.\n`);
       ws.close();
-      process.exit(0);
+      resolve();
     });
 
-    recorder.onDiscard(() => {
-      // recorder already printed the discard message; nothing extra needed
-    });
+    recorder.onDiscard(() => resolve());
 
-    const ws = connectOverlay(
-      opts.url,
+    ws = connectOverlay(
+      url,
       (msg) => recorder.handleState(msg),
       (err) => {
         recorder.destroy();
-        die(`Connection failed: ${err.message}\n  Is the relay server running at ${opts.url}?`);
+        process.stderr.write(C.red(`Connection failed: ${err.message}\n`));
+        process.stderr.write(C.dim(`  Is the relay server running at ${url}?\n`));
+        resolve();
       },
       () => {
         recorder.destroy();
-        process.stderr.write('\n\x1b[31mServer disconnected.\x1b[0m\n');
-        process.exit(1);
+        process.stderr.write(C.red('\nServer disconnected.\n'));
+        resolve();
       },
     );
 
     ws.once('open', () => {
-      process.stdout.write(`\x1b[32mConnected.\x1b[0m Waiting for driver ${opts.driver}...\n\n`);
+      process.stdout.write(`${C.green('Connected.')} Waiting for driver ${driverId}…\n\n`);
     });
   });
+}
 
-// ── process ───────────────────────────────────────────────────────────────────
+// ── Action: process ────────────────────────────────────────────────────────────
 
-program
-  .command('process')
-  .description('Compute track geometry and place sector boundaries from all 3 recorded lines + sector times')
-  .requiredOption('--track <id>', 'track identifier')
-  .requiredOption(
-    '--times <ms1,ms2,...>',
-    'sector times in ms from the ideal-line recording lap (e.g. 28451,15023,18204)',
-  )
-  .action((opts: { track: string; times: string }) => {
-    const times = opts.times.split(',').map((s) => parseInt(s.trim(), 10));
-    if (times.some((t) => isNaN(t) || t <= 0)) {
-      die('--times must be comma-separated positive integers (milliseconds)');
-    }
-    if (times.length < 2) {
-      die('--times needs at least 2 values (one per sector)');
-    }
-    const outputDir = trackDir(opts.track);
-    const totalMs   = times.reduce((a, b) => a + b, 0);
+async function runProcess(): Promise<void> {
+  process.stdout.write(`\n${C.bold('── Process track')} ${C.dim('───────────────────────────────')}\n`);
 
-    try {
-      const track     = computeTrack({ trackId: opts.track, sectorTimesMs: times, outputDir });
-      const trackPath = path.join(outputDir, 'track.json');
-      process.stdout.write(`\x1b[32m✓ Track processed:\x1b[0m ${trackPath}\n`);
-      process.stdout.write(`  Arc length : ${track.arcLengthM.toFixed(1)} m\n`);
-      process.stdout.write(`  Sectors    : ${track.sectorCount}\n`);
-      process.stdout.write(`  Lap time   : ${(totalMs / 1000).toFixed(3)}s\n`);
-      process.stdout.write(`  Boundaries :\n`);
-      for (const b of track.sectorBoundaries) {
-        process.stdout.write(
-          `    ${(b.arcFraction * 100).toFixed(2).padStart(6)}%  (${b.position.map((v) => v.toFixed(1)).join(', ')})\n`,
-        );
-      }
-    } catch (err) {
-      die((err as Error).message);
-    }
-  });
+  const trackId = await pickTrack();
 
-// ── info ──────────────────────────────────────────────────────────────────────
+  process.stdout.write(C.dim('\n  Enter the sector times shown by the game at the end of your\n'));
+  process.stdout.write(C.dim('  ideal-line recording lap, in seconds, comma-separated.\n'));
+  process.stdout.write(C.dim('  Example: 28.451,15.023,18.204\n\n'));
 
-program
-  .command('info')
-  .description('Show recording status for a track')
-  .requiredOption('--track <id>', 'track identifier')
-  .action((opts: { track: string }) => {
-    const outputDir = trackDir(opts.track);
-    process.stdout.write(`\x1b[1mTrack: ${opts.track}\x1b[0m\n\n`);
+  const timesStr = await ask('Sector times (seconds)');
+  const timesMs  = timesStr
+    .split(',')
+    .map((s) => Math.round(parseFloat(s.trim()) * 1000));
 
-    let allPresent = true;
-    for (const line of LINES) {
-      const p = path.join(outputDir, LINE_FILES[line]);
-      const exists = fs.existsSync(p);
-      if (!exists) allPresent = false;
-      process.stdout.write(`  ${exists ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${LINE_FILES[line]}\n`);
-    }
+  if (timesMs.length < 2 || timesMs.some((t) => isNaN(t) || t <= 0)) {
+    process.stderr.write(C.red('  Need at least 2 valid positive sector times.\n'));
+    return;
+  }
 
+  const outputDir = trackDir(trackId);
+  const totalMs   = timesMs.reduce((a, b) => a + b, 0);
+
+  try {
+    const track = computeTrack({ trackId, sectorTimesMs: timesMs, outputDir });
     const trackPath = path.join(outputDir, 'track.json');
-    if (fs.existsSync(trackPath)) {
-      const track = JSON.parse(fs.readFileSync(trackPath, 'utf-8')) as ComputedTrack;
-      const totalMs = track.sectorTimesMs?.reduce((a, b) => a + b, 0) ?? 0;
-      process.stdout.write(`\n  \x1b[32m✓\x1b[0m track.json\n`);
-      process.stdout.write(`    Sectors    : ${track.sectorCount}\n`);
-      process.stdout.write(`    Arc length : ${track.arcLengthM.toFixed(1)} m\n`);
-      if (track.sectorTimesMs?.length) {
-        process.stdout.write(
-          `    Lap time   : ${(totalMs / 1000).toFixed(3)}s` +
-          `  (${track.sectorTimesMs.map((t, i) => `S${i + 1}: ${(t / 1000).toFixed(3)}`).join('  ')})\n`,
-        );
-      }
-      process.stdout.write(`    Computed   : ${track.computedAt}\n`);
-    } else if (allPresent) {
+    process.stdout.write(`\n${C.green('✓ Track processed:')} ${trackPath}\n`);
+    process.stdout.write(`  Arc length : ${track.arcLengthM.toFixed(1)} m\n`);
+    process.stdout.write(`  Sectors    : ${track.sectorCount}\n`);
+    process.stdout.write(`  Lap time   : ${(totalMs / 1000).toFixed(3)}s\n`);
+    process.stdout.write(`  Boundaries :\n`);
+    for (const b of track.sectorBoundaries) {
       process.stdout.write(
-        `\n  \x1b[33m○\x1b[0m Not processed yet — run: yarn record process --track ${opts.track} --times <ms1,ms2,...>\n`,
-      );
-    } else {
-      process.stdout.write(
-        `\n  Record all 3 lines first, then run: yarn record process --track ${opts.track} --times <ms1,ms2,...>\n`,
+        `    ${(b.arcFraction * 100).toFixed(2).padStart(6)}%  (${b.position.map((v) => v.toFixed(1)).join(', ')})\n`,
       );
     }
-    process.stdout.write('\n');
-  });
+  } catch (err) {
+    process.stderr.write(C.red(`\n${(err as Error).message}\n`));
+  }
+}
 
-// ── test-sectors ──────────────────────────────────────────────────────────────
+// ── Action: test sectors ──────────────────────────────────────────────────────
 
-program
-  .command('test-sectors')
-  .description('Drive and compare tool-computed sector crossings against game-displayed times')
-  .requiredOption('--track <id>', 'track identifier')
-  .requiredOption('--driver <id>', 'driver ID to watch', parseInt)
-  .option('--url <url>', 'relay overlay WebSocket URL', 'ws://localhost:3000/overlay')
-  .action((opts: { track: string; driver: number; url: string }) => {
-    const outputDir = trackDir(opts.track);
-    const trackPath = path.join(outputDir, 'track.json');
+async function runTestSectors(): Promise<void> {
+  process.stdout.write(`\n${C.bold('── Test sectors')} ${C.dim('────────────────────────────────')}\n`);
 
-    if (!fs.existsSync(trackPath)) {
-      die(`No track.json found — run: yarn record process --track ${opts.track} --times <ms1,ms2,...>`);
+  const trackId = await pickTrack({ processedOnly: true });
+
+  const driverStr = await ask('Driver ID');
+  const driverId  = parseInt(driverStr, 10);
+  if (isNaN(driverId) || driverId < 0) {
+    process.stderr.write(C.red('  Driver ID must be a non-negative integer.\n'));
+    return;
+  }
+
+  const url = await ask('Server URL', DEFAULT_URL);
+
+  const trackPath = path.join(trackDir(trackId), 'track.json');
+  const track     = JSON.parse(fs.readFileSync(trackPath, 'utf-8')) as ComputedTrack;
+
+  process.stdout.write(`\n${C.bold('GT7 Sector Tester')}\n`);
+  process.stdout.write(`  Track  : ${C.yellow(trackId)}  (${track.sectorCount} sectors)\n`);
+  process.stdout.write(`  Driver : ${C.yellow(String(driverId))}\n`);
+  process.stdout.write(`  Server : ${C.dim(url)}\n\n`);
+  process.stdout.write(`Connecting…\n`);
+
+  rl.close();
+
+  startSectorTester({ url, track, driverId });
+}
+
+// ── Action: track info ────────────────────────────────────────────────────────
+
+async function runInfo(): Promise<void> {
+  process.stdout.write(`\n${C.bold('── Track info')} ${C.dim('──────────────────────────────────')}\n`);
+
+  const trackId  = await pickTrack();
+
+  const outputDir = trackDir(trackId);
+  process.stdout.write(`\n${C.bold(`Track: ${trackId}`)}\n\n`);
+
+  let allPresent = true;
+  for (const line of LINES) {
+    const p      = path.join(outputDir, LINE_FILES[line]);
+    const exists = fs.existsSync(p);
+    if (!exists) allPresent = false;
+    process.stdout.write(`  ${exists ? C.green('✓') : C.red('✗')} ${LINE_FILES[line]}\n`);
+  }
+
+  const trackPath = path.join(outputDir, 'track.json');
+  if (fs.existsSync(trackPath)) {
+    const track   = JSON.parse(fs.readFileSync(trackPath, 'utf-8')) as ComputedTrack;
+    const totalMs = track.sectorTimesMs?.reduce((a, b) => a + b, 0) ?? 0;
+    process.stdout.write(`\n  ${C.green('✓')} track.json\n`);
+    process.stdout.write(`    Sectors    : ${track.sectorCount}\n`);
+    process.stdout.write(`    Arc length : ${track.arcLengthM.toFixed(1)} m\n`);
+    if (track.sectorTimesMs?.length) {
+      process.stdout.write(
+        `    Lap time   : ${(totalMs / 1000).toFixed(3)}s` +
+        `  (${track.sectorTimesMs.map((t, i) => `S${i + 1}: ${(t / 1000).toFixed(3)}`).join('  ')})\n`,
+      );
     }
+    process.stdout.write(`    Computed   : ${track.computedAt}\n`);
+  } else if (allPresent) {
+    process.stdout.write(`\n  ${C.yellow('○')} All lines recorded — run "Process track" to compute boundaries.\n`);
+  } else {
+    process.stdout.write(`\n  Record all 3 lines first, then run "Process track".\n`);
+  }
+  process.stdout.write('\n');
+}
 
-    const track = JSON.parse(fs.readFileSync(trackPath, 'utf-8')) as ComputedTrack;
+// ── Action: list tracks ───────────────────────────────────────────────────────
 
-    process.stdout.write(`\x1b[1mGT7 Sector Tester\x1b[0m\n`);
-    process.stdout.write(`  Track  : \x1b[33m${opts.track}\x1b[0m  (${track.sectorCount} sectors)\n`);
-    process.stdout.write(`  Driver : \x1b[33m${opts.driver}\x1b[0m\n`);
-    process.stdout.write(`  Server : \x1b[2m${opts.url}\x1b[0m\n\n`);
-    process.stdout.write(`Connecting...\n`);
+function runList(): void {
+  const tracks = getTracksOnDisk();
 
-    startSectorTester({ url: opts.url, track, driverId: opts.driver });
-  });
+  if (tracks.length === 0) {
+    process.stdout.write('\n  No tracks recorded yet.\n\n');
+    return;
+  }
 
-// ── monitor ───────────────────────────────────────────────────────────────────
+  process.stdout.write(`\n${C.bold('Recorded tracks:')}\n\n`);
+  for (const id of tracks) {
+    const dir    = path.join(TRACKS_ROOT, id);
+    const linesN = LINES.filter((l) => fs.existsSync(path.join(dir, LINE_FILES[l]))).length;
+    const processed = fs.existsSync(path.join(dir, 'track.json'));
+    const status = processed
+      ? C.green('processed')
+      : linesN === 3
+        ? C.yellow('ready to process')
+        : C.dim(`${linesN}/3 lines recorded`);
+    process.stdout.write(`  ${id.padEnd(28)} ${status}\n`);
+  }
+  process.stdout.write('\n');
+}
 
-program
-  .command('monitor')
-  .description('Live packet viewer — inspect telemetry arriving from drivers')
-  .option('--url <url>', 'relay overlay WebSocket URL', 'ws://localhost:3000/overlay')
-  .option('--driver <id>', 'show only this driver ID', parseInt)
-  .option('--raw', 'dump raw JSON instead of formatted view', false)
-  .action((opts: { url: string; driver?: number; raw: boolean }) => {
-    startMonitor({ url: opts.url, raw: opts.raw, driverId: opts.driver });
-  });
+// ── Action: monitor ───────────────────────────────────────────────────────────
 
-// ── list ──────────────────────────────────────────────────────────────────────
+async function runMonitor(): Promise<void> {
+  process.stdout.write(`\n${C.bold('── Monitor telemetry')} ${C.dim('───────────────────────────────')}\n\n`);
 
-program
-  .command('list')
-  .description('List all recorded tracks')
-  .action(() => {
-    if (!fs.existsSync(TRACKS_ROOT)) {
-      process.stdout.write('No tracks recorded yet.\n');
-      return;
+  const driverStr = await ask('Driver ID to watch (leave blank for all)', '');
+  const driverId  = driverStr ? parseInt(driverStr, 10) : undefined;
+  if (driverStr && (isNaN(driverId!) || driverId! < 0)) {
+    process.stderr.write(C.red('  Driver ID must be a non-negative integer.\n'));
+    return;
+  }
+
+  const rawChoice = await choose('Output format', [
+    `Formatted view ${C.dim('— readable live dashboard')}`,
+    `Raw JSON       ${C.dim('— full packet dump')}`,
+  ]);
+  const raw = rawChoice === 1;
+
+  const url = await ask('Server URL', DEFAULT_URL);
+
+  rl.close();  // close before handing off to long-running monitor
+  startMonitor({ url, raw, driverId });
+}
+
+// ── Main menu ──────────────────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  process.stdout.write('\n');
+  process.stdout.write(C.bold('  GT7 Track Recorder\n'));
+  process.stdout.write(C.dim('  ─────────────────────────────────────────\n'));
+
+  while (true) {
+    const action = await choose('What would you like to do?', [
+      'Record a line',
+      'Process track',
+      'Test sectors',
+      'Track info',
+      'List tracks',
+      'Monitor telemetry',
+      'Exit',
+    ]);
+
+    switch (action) {
+      case 0: await runRecord();      break;  // returns → loops back
+      case 1: await runProcess();     break;  // returns → loops back
+      case 2: await runTestSectors(); break;  // hands off → process.exit()
+      case 3: await runInfo();        break;  // returns → loops back
+      case 4: runList();              break;  // returns → loops back
+      case 5: await runMonitor();     break;  // hands off → process.exit()
+      case 6:
+        process.stdout.write('\nBye!\n');
+        rl.close();
+        return;
     }
-    const entries = fs.readdirSync(TRACKS_ROOT, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
+  }
+}
 
-    if (entries.length === 0) {
-      process.stdout.write('No tracks recorded yet.\n');
-      return;
-    }
-
-    process.stdout.write('\x1b[1mRecorded tracks:\x1b[0m\n\n');
-    for (const id of entries) {
-      const dir = path.join(TRACKS_ROOT, id);
-      const lines = LINES.filter((l) => fs.existsSync(path.join(dir, LINE_FILES[l]))).length;
-      const trackPath = path.join(dir, 'track.json');
-      let status: string;
-      if (fs.existsSync(trackPath)) {
-        status = '\x1b[32mprocessed\x1b[0m';
-      } else {
-        status = lines === 3
-          ? '\x1b[33mready to process\x1b[0m'
-          : `\x1b[2m${lines}/3 lines recorded\x1b[0m`;
-      }
-      process.stdout.write(`  ${id.padEnd(24)} ${status}\n`);
-    }
-    process.stdout.write('\n');
-  });
-
-// ── Parse ─────────────────────────────────────────────────────────────────────
-
-program.parseAsync(process.argv).catch((err: Error) => {
-  die(err.message);
+main().catch((err: Error) => {
+  process.stderr.write(C.red(`\nError: ${err.message}\n`));
+  process.exit(1);
 });
