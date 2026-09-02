@@ -1,3 +1,5 @@
+import { StandingsRow } from "./v2/gap-engine";
+
 // Full incoming packet from a driver client (JSON-encoded)
 export interface DriverPacket {
   // PacketA
@@ -24,8 +26,8 @@ export interface DriverPacket {
   bestLaptime: number;
   lastLaptime: number;
   dayProgression: number;
-  RaceStartPosition: number;
-  preRaceNumCars: number;
+  RaceStartPosition: number; //misleading name, this is driver's current live position on track
+  preRaceNumCars: number; //misleading name, this is current total number of drivers on track
   minAlertRPM: number;
   maxAlertRPM: number;
   calcMaxSpeed: number;
@@ -64,22 +66,23 @@ export interface DriverPacket {
 }
 
 export interface RosterEntry {
-  id:      number;
-  name:    string;
+  id: number;
+  name: string;
   country: string;
 }
 
-export type SectorStatus = 'purple' | 'green' | 'red' | 'neutral';
+export type SectorStatus = "purple" | "green" | "red" | "neutral";
 
 export interface Derived {
   rank: number;
   gapToLeader: number;
   gapToAhead: number;
-  sectors: number[];           // per-sector ms for the last completed lap
+  sectors: number[]; // per-sector ms for the last completed lap
   sectorStatus: SectorStatus[];
-  bestLapSectors: number[];    // per-sector ms from the fastest lap in the current mode
-  currentSector: number;       // 0-indexed sector the driver is currently in
-  arcFraction: number;         // 0–1 position along the ideal line, for rank & visualization
+  bestLapSectors: number[]; // per-sector ms from the fastest lap in the current mode
+  currentSector: number; // 0-indexed sector the driver is currently in
+  sectorStartLapT: number; // lap-relative ms when the current sector began
+  arcFraction: number; // 0–1 position along the ideal line, for rank & visualization
   pitted: boolean;
 }
 
@@ -93,12 +96,12 @@ export interface RaceState {
   order: number[]; // driver IDs sorted by rank (index 0 = rank 1)
 }
 
-export type SessionMode = 'race' | 'qualifying' | 'practice';
+export type SessionMode = "race" | "qualifying" | "practice";
 
 export interface Session {
   id: string;
   roster: RosterEntry[];
-  status: 'waiting' | 'racing' | 'finished';
+  status: "waiting" | "racing" | "finished";
   mode: SessionMode;
   trackId: string;
   isRecording: boolean;
@@ -117,7 +120,7 @@ export interface DriverTelemetry {
   minAlertRPM: number;
   maxAlertRPM: number;
   gears: number;
-  currentGear: number;   // decoded from gears byte
+  currentGear: number; // decoded from gears byte
   suggestedGear: number; // decoded from gears byte
   throttle: number;
   brake: number;
@@ -133,6 +136,7 @@ export interface DriverTelemetry {
   // Used for position tracking
   position: [number, number, number];
   currentLap: number;
+  steeringAngle: number;
 }
 
 // Per-driver payload sent to overlay
@@ -152,39 +156,47 @@ export interface StandingsOverlay {
 
 /** 0 drivers = module hidden; 1 = single driver; 2 = side-by-side compare */
 export interface SectorOverlay {
-  visible:   boolean;
-  driverIds: number[];  // 0–2 entries
+  visible: boolean;
+  driverIds: number[]; // 0–2 entries
 }
 
 /** 0 drivers = module hidden; 1 = single driver; 2 = side-by-side compare */
 export interface CarTelemetryOverlay {
-  visible:   boolean;
-  driverIds: number[];  // 0–2 entries
+  visible: boolean;
+  driverIds: number[]; // 0–2 entries
 }
 
 export interface DriverShowcaseOverlay {
-  visible:  boolean;
+  visible: boolean;
+  driverId: number | null;
+}
+
+/** Single-driver telemetry HUD: throttle, brake, steering angle */
+export interface DriverTelemetryOverlay {
+  visible: boolean;
   driverId: number | null;
 }
 
 export interface OverlayState {
-  standings:      StandingsOverlay;
-  sector:         SectorOverlay;
-  carTelemetry:   CarTelemetryOverlay;
+  standings: StandingsOverlay;
+  sector: SectorOverlay;
+  carTelemetry: CarTelemetryOverlay;
   driverShowcase: DriverShowcaseOverlay;
+  driverTelemetry: DriverTelemetryOverlay;
 }
 
 // ── Broadcasts ────────────────────────────────────────────────────────────────
 
 export interface StateBroadcast {
-  type: 'state';
+  type: "state";
   drivers: Record<number, DriverBroadcast>;
   raceState: RaceState;
   overlayState: OverlayState;
+  standingsV2: StandingsRow[];
 }
 
 export interface RosterBroadcast {
-  type: 'roster';
+  type: "roster";
   session: Session;
   roster: RosterEntry[];
 }

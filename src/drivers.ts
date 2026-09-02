@@ -1,6 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
-import WebSocket from 'ws';
-import type { DriverPacket, DriverTelemetry } from './types';
+import { v4 as uuidv4 } from "uuid";
+import WebSocket from "ws";
+import type { DriverPacket, DriverTelemetry } from "./types";
 
 export interface DriverState {
   id: number;
@@ -10,6 +10,9 @@ export interface DriverState {
   connected: boolean;
   lastSeen: number;
   telemetry: DriverTelemetry | null;
+  frozenScore: number | null;
+  frozenGapToLeader: number | null;
+  frozenGapToAhead: number | null;
 }
 
 const tokenToDriverId = new Map<string, number>();
@@ -23,12 +26,15 @@ export function registerDriver(driverId: number): string {
 
   drivers.set(driverId, {
     id: driverId,
-    carCode: 0,   // populated from first telemetry packet
+    carCode: 0, // populated from first telemetry packet
     token,
     ws: null,
     connected: false,
     lastSeen: 0,
     telemetry: null,
+    frozenScore: null,
+    frozenGapToLeader: null,
+    frozenGapToAhead: null,
   });
   tokenToDriverId.set(token, driverId);
   return token;
@@ -41,7 +47,7 @@ export function resolveToken(token: string): DriverState | null {
 
 export function connectDriver(state: DriverState, ws: WebSocket): void {
   if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-    state.ws.close(1001, 'replaced by new connection');
+    state.ws.close(1001, "replaced by new connection");
   }
   state.ws = ws;
   state.connected = true;
@@ -50,7 +56,7 @@ export function connectDriver(state: DriverState, ws: WebSocket): void {
 
 export function connectDriverMock(state: DriverState): void {
   state.connected = true;
-  state.lastSeen  = Date.now();
+  state.lastSeen = Date.now();
   // ws intentionally remains null — mock drivers have no WebSocket
 }
 
@@ -61,7 +67,7 @@ export function disconnectDriver(state: DriverState): void {
 
 export function updatePacket(state: DriverState, packet: DriverPacket): void {
   state.lastSeen = Date.now();
-  state.carCode  = packet.carCode;   // promote from packet on every update
+  state.carCode = packet.carCode; // promote from packet on every update
   state.telemetry = extractTelemetry(packet);
 }
 
@@ -82,13 +88,14 @@ function extractTelemetry(p: DriverPacket): DriverTelemetry {
     fuelLevel: p.fuelLevel,
     fuelCapacity: p.fuelCapacity,
     tyreTemp: p.tyreTemp,
-    carCategory: p.carCategory ?? '',
+    carCategory: p.carCategory ?? "",
     carCode: p.carCode,
     bestLaptime: p.bestLaptime,
     lastLaptime: p.lastLaptime,
     RaceStartPosition: p.RaceStartPosition,
     position: p.position,
     currentLap: p.currentLap ?? 0,
+    steeringAngle: (p.wheelSteeringAngle?.[0] ?? 0) * (180 / Math.PI) * 20,
   };
 }
 
@@ -99,7 +106,7 @@ export function getAllDrivers(): DriverState[] {
 export function clearDrivers(): void {
   for (const d of drivers.values()) {
     if (d.ws && d.ws.readyState === WebSocket.OPEN) {
-      d.ws.close(1001, 'session reset');
+      d.ws.close(1001, "session reset");
     }
   }
   tokenToDriverId.clear();

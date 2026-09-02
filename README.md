@@ -238,7 +238,8 @@ Read the current overlay visibility state.
   "standings": { "visible": false },
   "sector": { "visible": false, "driverIds": [] },
   "carTelemetry": { "visible": false, "driverIds": [] },
-  "driverShowcase": { "visible": false, "driverId": null }
+  "driverShowcase": { "visible": false, "driverId": null },
+  "driverTelemetry": { "visible": false, "driverId": null }
 }
 ```
 
@@ -263,7 +264,8 @@ Toggle the standings overlay. All fields are optional — only the fields includ
     "standings": { "visible": true },
     "sector": { "visible": false, "driverIds": [] },
     "carTelemetry": { "visible": false, "driverIds": [] },
-    "driverShowcase": { "visible": false, "driverId": null }
+    "driverShowcase": { "visible": false, "driverId": null },
+    "driverTelemetry": { "visible": false, "driverId": null }
   }
 }
 ```
@@ -331,6 +333,29 @@ Toggle the driver showcase overlay and optionally set which driver to feature.
 | `driverId` | `number \| null` | Optional. `null` clears the selected driver. |
 
 **Response `200`** — same shape as `POST /overlay/standings`.  
+**Response `400`** — `driverId` is not a number or null.
+
+---
+
+### `POST /overlay/driver-telemetry`
+
+Toggle the driver telemetry overlay and optionally set which driver to feature. Designed to show a single driver's telemetry data (throttle, brake, steering wheel angle).
+
+**Request body**
+
+```json
+{
+  "visible": true,
+  "driverId": 1
+}
+```
+
+| Field      | Type             | Notes                                        |
+| ---------- | ---------------- | -------------------------------------------- |
+| `visible`  | `boolean`        | Optional.                                    |
+| `driverId` | `number \| null` | Optional. `null` clears the selected driver. |
+
+**Response `200`** — same shape as `POST /overlay/standings`.
 **Response `400`** — `driverId` is not a number or null.
 
 ---
@@ -426,6 +451,7 @@ Sent at `BROADCAST_HZ` (default 60 Hz).
     sector:         { visible: boolean; driverIds: number[] };
     carTelemetry:   { visible: boolean; driverIds: number[] };
     driverShowcase: { visible: boolean; driverId: number | null };
+    driverTelemetry: { visible: boolean; driverId: number | null };
   };
 }
 ```

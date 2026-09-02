@@ -1,7 +1,13 @@
-import type { DriverState } from './drivers';
-import * as sectorTracker from './sector-tracker';
-import { getTrack } from './track';
-import type { Derived, DriverBroadcast, RaceState, SectorStatus, SessionMode } from './types';
+import type { DriverState } from "./drivers";
+import * as sectorTracker from "./sector-tracker";
+import { getTrack } from "./track";
+import type {
+  Derived,
+  DriverBroadcast,
+  RaceState,
+  SectorStatus,
+  SessionMode,
+} from "./types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -11,9 +17,10 @@ function nullDerived(sectorCount: number): Derived {
     gapToLeader: 0,
     gapToAhead: 0,
     sectors: Array<number>(sectorCount).fill(0),
-    sectorStatus: Array<SectorStatus>(sectorCount).fill('neutral'),
+    sectorStatus: Array<SectorStatus>(sectorCount).fill("neutral"),
     bestLapSectors: [],
     currentSector: 0,
+    sectorStartLapT: 0,
     arcFraction: 0,
     pitted: false,
   };
@@ -22,7 +29,16 @@ function nullDerived(sectorCount: number): Derived {
 // race mode: higher score = further ahead
 function raceScore(d: DriverState): number {
   if (!d.telemetry) return -1;
-  return d.telemetry.lapCount + (sectorTracker.getState(d.id)?.arcFraction ?? 0);
+  if (isFinished(d) && d.frozenScore !== null) return d.frozenScore;
+  return (
+    d.telemetry.lapCount + (sectorTracker.getState(d.id)?.arcFraction ?? 0)
+  );
+}
+
+function isFinished(d: DriverState): boolean {
+  const lapCount = d.telemetry?.lapCount ?? 0;
+  const totalLaps = d.telemetry?.totalLaps ?? 0;
+  return totalLaps > 0 && lapCount >= totalLaps;
 }
 
 // Sort the connected+telemetry drivers by the correct criterion for the mode.
@@ -31,7 +47,7 @@ function raceScore(d: DriverState): number {
 function sortActive(drivers: DriverState[], mode: SessionMode): DriverState[] {
   const active = drivers.filter((d) => d.connected && d.telemetry !== null);
 
-  if (mode === 'race') {
+  if (mode === "race") {
     return [...active].sort((a, b) => raceScore(b) - raceScore(a));
   }
 
@@ -40,9 +56,9 @@ function sortActive(drivers: DriverState[], mode: SessionMode): DriverState[] {
     const ta = a.telemetry!.bestLaptime;
     const tb = b.telemetry!.bestLaptime;
     if (ta === 0 && tb === 0) return 0;
-    if (ta === 0) return 1;   // no time set → end of list
+    if (ta === 0) return 1; // no time set → end of list
     if (tb === 0) return -1;
-    return ta - tb;           // lower laptime = better
+    return ta - tb; // lower laptime = better
   });
 }
 
@@ -52,9 +68,9 @@ export function buildDriverBroadcasts(
   drivers: DriverState[],
   mode: SessionMode,
 ): Record<number, DriverBroadcast> {
-  const track       = getTrack();
+  const track = getTrack();
   const sectorCount = track?.sectorCount ?? 3;
-  const sorted      = sortActive(drivers, mode);
+  const sorted = sortActive(drivers, mode);
 
   // Build rank map (1-indexed, 0 = not active)
   const rankMap = new Map<number, number>();
@@ -65,34 +81,59 @@ export function buildDriverBroadcasts(
   // race mode    : gap in seconds = (score delta) × arcLength / leaderSpeed
   // qual/practice: gap in seconds = bestLaptime delta (ms → s)
 
-  const leader      = sorted[0];
+  const leader = sorted[0];
   const leaderScore = leader ? raceScore(leader) : 0;
   const leaderSpeed = Math.max(leader?.telemetry?.speed ?? 10, 10);
-  const arcLengthM  = track?.arcLengthM ?? 1;
-  const leaderBest  = leader?.telemetry?.bestLaptime ?? 0;
+  const arcLengthM = track?.arcLengthM ?? 1;
+  const leaderBest = leader?.telemetry?.bestLaptime ?? 0;
 
   function raceGaps(d: DriverState, rank: number) {
     if (rank === 1) return { gapToLeader: 0, gapToAhead: 0 };
-    const score       = raceScore(d);
-    const gapToLeader = Math.max(0, (leaderScore - score) * arcLengthM / leaderSpeed);
-    const ahead       = sorted[rank - 2];
-    const aheadScore  = ahead ? raceScore(ahead) : leaderScore;
-    const gapToAhead  = Math.max(0, (aheadScore - score) * arcLengthM / leaderSpeed);
+    if ((d.telemetry?.lapCount ?? 0) < 1)
+      return { gapToLeader: 0, gapToAhead: 0 };
+    if (
+      isFinished(d) &&
+      d.frozenGapToLeader !== null &&
+      d.frozenGapToAhead !== null
+    ) {
+      return {
+        gapToLeader: d.frozenGapToLeader,
+        gapToAhead: d.frozenGapToAhead,
+      };
+    }
+    const score = raceScore(d);
+    const gapToLeader = Math.max(
+      0,
+      ((leaderScore - score) * arcLengthM) / leaderSpeed,
+    );
+    const ahead = sorted[rank - 2];
+    const aheadScore = ahead ? raceScore(ahead) : leaderScore;
+    const gapToAhead = Math.max(
+      0,
+      ((aheadScore - score) * arcLengthM) / leaderSpeed,
+    );
+    if (isFinished(d)) {
+      d.frozenScore = score;
+      d.frozenGapToLeader = gapToLeader;
+      d.frozenGapToAhead = gapToAhead;
+    }
     return { gapToLeader, gapToAhead };
   }
 
   function qualGaps(d: DriverState, rank: number) {
     if (rank === 1) return { gapToLeader: 0, gapToAhead: 0 };
     const dBest = d.telemetry!.bestLaptime;
-    if (dBest === 0 || leaderBest === 0) return { gapToLeader: 0, gapToAhead: 0 };
+    if (dBest === 0 || leaderBest === 0)
+      return { gapToLeader: 0, gapToAhead: 0 };
     const gapToLeader = Math.max(0, (dBest - leaderBest) / 1000);
-    const ahead       = sorted[rank - 2];
-    const aheadBest   = ahead?.telemetry?.bestLaptime ?? leaderBest;
-    const gapToAhead  = aheadBest === 0 ? 0 : Math.max(0, (dBest - aheadBest) / 1000);
+    const ahead = sorted[rank - 2];
+    const aheadBest = ahead?.telemetry?.bestLaptime ?? leaderBest;
+    const gapToAhead =
+      aheadBest === 0 ? 0 : Math.max(0, (dBest - aheadBest) / 1000);
     return { gapToLeader, gapToAhead };
   }
 
-  const getGaps = mode === 'race' ? raceGaps : qualGaps;
+  const getGaps = mode === "race" ? raceGaps : qualGaps;
 
   // ── Build per-driver result ────────────────────────────────────────────────
 
@@ -106,13 +147,12 @@ export function buildDriverBroadcasts(
       derived = nullDerived(sectorCount);
     } else {
       const rank = rankMap.get(d.id) ?? 0;
-      const st   = sectorTracker.getState(d.id);
+      const st = sectorTracker.getState(d.id);
 
-      const { gapToLeader, gapToAhead } = rank > 0
-        ? getGaps(d, rank)
-        : { gapToLeader: 0, gapToAhead: 0 };
+      const { gapToLeader, gapToAhead } =
+        rank > 0 ? getGaps(d, rank) : { gapToLeader: 0, gapToAhead: 0 };
 
-      const sectors: number[]            = [];
+      const sectors: number[] = [];
       const sectorStatus: SectorStatus[] = [];
       for (let s = 0; s < sectorCount; s++) {
         sectors.push(st?.lastLapSectors[s] ?? 0);
@@ -127,15 +167,16 @@ export function buildDriverBroadcasts(
         sectorStatus,
         bestLapSectors: sectorTracker.getBestLapSectors(d.id, mode),
         currentSector: st?.currentSector ?? 0,
+        sectorStartLapT: st?.sectorStartLapT ?? 0,
         arcFraction: st?.arcFraction ?? 0,
         pitted: tel.speed < 3, // ~10 km/h threshold
       };
     }
 
     result[d.id] = {
-      id:        d.id,
+      id: d.id,
       connected: d.connected,
-      lastSeen:  d.lastSeen,
+      lastSeen: d.lastSeen,
       telemetry: tel,
       derived,
     };
@@ -146,14 +187,17 @@ export function buildDriverBroadcasts(
 
 // ── Race state ────────────────────────────────────────────────────────────────
 
-export function buildRaceState(drivers: DriverState[], mode: SessionMode): RaceState {
-  const track  = getTrack();
+export function buildRaceState(
+  drivers: DriverState[],
+  mode: SessionMode,
+): RaceState {
+  const track = getTrack();
   const sorted = sortActive(drivers, mode);
   const leader = sorted[0];
 
   const base = {
     mode,
-    trackId:     track?.id ?? null,
+    trackId: track?.id ?? null,
     sectorCount: track?.sectorCount ?? 0,
   };
 
@@ -163,9 +207,9 @@ export function buildRaceState(drivers: DriverState[], mode: SessionMode): RaceS
 
   return {
     ...base,
-    lap:            leader.telemetry.lapCount,
-    totalLaps:      leader.telemetry.totalLaps,
+    lap: leader.telemetry.lapCount,
+    totalLaps: leader.telemetry.totalLaps,
     dayProgression: leader.telemetry.dayProgression,
-    order:          sorted.map((d) => d.id),
+    order: sorted.map((d) => d.id),
   };
 }

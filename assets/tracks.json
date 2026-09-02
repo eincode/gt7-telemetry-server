@@ -1,0 +1,66 @@
+[
+  {
+    "id": "bb-raceway",
+    "name": "BB Raceway",
+    "country": "Japan",
+    "totalLength": 1683,
+    "totalSectors": 2,
+    "imagePath": "/assets/track/bb-raceway.png"
+  },
+  {
+    "id": "daytona-road-course",
+    "name": "Daytona Road Course",
+    "country": "United States",
+    "totalLength": 5702,
+    "totalSectors": 5,
+    "imagePath": "/assets/track/daytona-road-course.png"
+  },
+  {
+    "id": "brands-hatch-indy",
+    "name": "Brands Hatch Indy",
+    "country": "United Kingdom",
+    "totalLength": 1912,
+    "totalSectors": 3,
+    "imagePath": "/assets/track/brands-hatch-indy.png"
+  },
+  {
+    "id": "laguna-seca",
+    "name": "WeatherTech Raceway Laguna Seca",
+    "country": "United States",
+    "totalLength": 3548,
+    "totalSectors": 3,
+    "imagePath": "/assets/track/laguna-seca.png"
+  },
+  {
+    "id": "nurburgring-gp",
+    "name": "Nürburgring GP",
+    "country": "Germany",
+    "totalLength": 5043,
+    "totalSectors": 4,
+    "imagePath": "/assets/track/nurburgring-gp.png"
+  },
+  {
+    "id": "spa-24h",
+    "name": "Circuit de Spa-Francorchamps",
+    "country": "Belgium",
+    "totalLength": 6921,
+    "totalSectors": 3,
+    "imagePath": "/assets/track/spa-24h.png"
+  },
+  {
+    "id": "trial-mountain",
+    "name": "Trial Mountain",
+    "country": "Japan",
+    "totalLength": 5332,
+    "totalSectors": 3,
+    "imagePath": "/assets/track/trial-mountain.png"
+  },
+  {
+    "id": "tsukuba",
+    "name": "Tsukuba Circuit",
+    "country": "Japan",
+    "totalLength": 2067,
+    "totalSectors": 3,
+    "imagePath": "/assets/track/tsukuba.png"
+  }
+]
