@@ -12,6 +12,9 @@ export interface TrackJson {
   leftLine?: [number, number, number][];
   rightLine?: [number, number, number][];
   arcLengthM?: number;
+  sectorCount?: number;
+  /** Only `position` is read; the recorder type carries more fields. */
+  sectorBoundaries?: { position: [number, number, number] }[];
 }
 
 export class TrackRuler {
@@ -37,6 +40,12 @@ export class TrackRuler {
 
   /** +1 or -1, calibrated so negative lateralOffset means left. */
   lateralSign: number = 1;
+
+  /**
+   * Distance along the lap of each sector boundary, ascending. Empty until
+   * calibrateSectors() runs, which leaves every position in sector 0.
+   */
+  sectorBoundaryDistances: Float64Array = new Float64Array(0);
 
   constructor(track: TrackJson) {
     this.trackId = track.id;
@@ -119,6 +128,25 @@ export class TrackRuler {
 
   segmentLength(i: number): number {
     return this.cumulativeDistance[i + 1] - this.cumulativeDistance[i];
+  }
+
+  /**
+   * N boundaries make N + 1 sectors — the start/finish line is the implicit
+   * one, so it is not stored.
+   */
+  get sectorCount(): number {
+    return this.sectorBoundaryDistances.length + 1;
+  }
+
+  /** 0-indexed sector containing a distanceAlongLap. */
+  sectorAt(distanceAlongLap: number): number {
+    const bounds = this.sectorBoundaryDistances;
+    let sector = 0;
+    // Two or three boundaries in practice — a scan beats a binary search.
+    while (sector < bounds.length && distanceAlongLap >= bounds[sector]) {
+      sector++;
+    }
+    return sector;
   }
 
   // -------------------------------------------------------------------------

@@ -22,6 +22,8 @@ export class DriverProgress {
   lastTimestamp = -1;
   lastSpeed = 0;
   lastProjection: Projection | null = null;
+  /** 0-indexed sector the driver is currently in. */
+  currentSector = 0;
   readonly history: HistoryBuffer;
 
   private hintIndex = -1;
@@ -50,13 +52,24 @@ export class DriverProgress {
 
   update(packet: GapPacket, timestamp: number, mode: SessionMode): void {
     if (this.finished) return; // freeze — ignore the cooldown lap entirely
+    const dt = timestamp - this.lastTimestamp;
+    const expected =
+      this.armed && dt > 0 && dt < 0.5
+        ? (this.lastDistanceAlongLap + packet.speed * dt) %
+          this.ruler.trackLength
+        : -1;
     const projection = projectToTrack(
       this.ruler,
       packet.position as Vec3,
       this.hintIndex,
+      expected,
     );
     this.hintIndex = projection.segmentIndex;
     this.lastProjection = projection;
+
+    // Independent of arming — where the car is on the track is known from the
+    // first packet, long before we start accumulating distance.
+    this.currentSector = this.ruler.sectorAt(projection.distanceAlongLap);
 
     const L = this.ruler.trackLength;
 
@@ -90,7 +103,6 @@ export class DriverProgress {
       this.wrapCount++;
     }
 
-    const dt = timestamp - this.lastTimestamp;
     const maxPossible = Math.max(packet.speed, 10) * dt * 1.5 + 15;
 
     if (Math.abs(change) > maxPossible) {

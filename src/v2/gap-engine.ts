@@ -61,19 +61,18 @@ export class GapEngine {
   /** Call on the standings refresh, 5–10 Hz. NOT at 60 Hz. */
   standings(reportedPositions: Map<string, number>): StandingsRow[] {
     const ordered = [...this.drivers.values()]
-      .filter((d) => d.armed)
+      // .filter((d) => d.armed)
       .sort((a, b) => {
         // The game reports each driver's position from their own packet, and
         // those arrive at different moments — during an overtake two drivers
         // can briefly both claim the same slot. Tiebreak on distance.
         if (a.finished !== b.finished) return a.finished ? -1 : 1;
         if (a.finished && b.finished) return a.finishOrder! - b.finishOrder!;
-        // const pa = reportedPositions.get(a.driverId) ?? 999;
-        // const pb = reportedPositions.get(b.driverId) ?? 999;
-        // if (pa !== pb) return pa - pb;
+        const pa = reportedPositions.get(a.driverId) ?? 999;
+        const pb = reportedPositions.get(b.driverId) ?? 999;
+        if (pa !== pb) return pa - pb;
         return b.totalDistance - a.totalDistance;
       });
-    console.log("🚀 ~ GapEngine ~ standings ~ ordered:", ordered);
 
     const L = this.ruler.trackLength;
     const rows: StandingsRow[] = [];

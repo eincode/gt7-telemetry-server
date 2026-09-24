@@ -1,5 +1,51 @@
-import type { ComputedTrack, Vec3, SectorBoundary } from './recorder/types';
-import type { SectorStatus, SessionMode } from './types';
+import type { ComputedTrack, SectorBoundary, Vec3 } from "./recorder/types";
+import type { SectorStatus, SessionMode } from "./types";
+
+// New changes -----
+
+function cross2(ax: number, az: number, bx: number, bz: number): number {
+  return ax * bz - az * bx;
+}
+
+/**
+ * Intersects two line segments in the XZ plane.
+ *
+ * Returns the fraction along segment AB where the intersection occurs,
+ * or null if the segments don't intersect.
+ */
+function segmentIntersectionXZ(
+  a: Vec3,
+  b: Vec3,
+  c: Vec3,
+  d: Vec3,
+): number | null {
+  const rX = b[0] - a[0];
+  const rZ = b[2] - a[2];
+
+  const sX = d[0] - c[0];
+  const sZ = d[2] - c[2];
+
+  const denom = cross2(rX, rZ, sX, sZ);
+
+  // Parallel / nearly parallel.
+  if (Math.abs(denom) < 1e-8) {
+    return null;
+  }
+
+  const cax = c[0] - a[0];
+  const caz = c[2] - a[2];
+
+  const t = cross2(cax, caz, sX, sZ) / denom;
+  const u = cross2(cax, caz, rX, rZ) / denom;
+
+  // t = position along telemetry movement A -> B
+  // u = position along sector gate C -> D
+  if (t < 0 || t > 1 || u < 0 || u > 1) {
+    return null;
+  }
+
+  return t;
+}
 
 // ── Vec3 math ──────────────────────────────────────────────────────────────────
 
@@ -12,7 +58,9 @@ function sub3(a: Vec3, b: Vec3): Vec3 {
 }
 
 function dist3(a: Vec3, b: Vec3): number {
-  const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1],
+    dz = b[2] - a[2];
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
@@ -21,10 +69,14 @@ function signedDist(carPos: Vec3, b: SectorBoundary): number {
 }
 
 function nearestIndex(line: Vec3[], P: Vec3): number {
-  let best = 0, bestDist = Infinity;
+  let best = 0,
+    bestDist = Infinity;
   for (let i = 0; i < line.length; i++) {
     const d = dist3(line[i], P);
-    if (d < bestDist) { bestDist = d; best = i; }
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
   }
   return best;
 }
@@ -38,12 +90,13 @@ export interface DriverSectorState {
   prevLapT: number | null;
   prevLapCount: number | null;
   currentLapSectors: number[];
-  lastLapSectors: number[];       // most recently completed full lap
-  personalBestSectors: number[];  // per-sector personal bests across all laps
-  arcFraction: number;            // 0–1 position along the ideal line
+  lastLapSectors: number[]; // most recently completed full lap
+  personalBestSectors: number[]; // per-sector personal bests across all laps
+  arcFraction: number; // 0–1 position along the ideal line
   // Sector times from the single fastest lap, stored separately per session mode
-  bestLapSectorsByMode:  Partial<Record<SessionMode, number[]>>;
-  bestLapTimeByMode:     Partial<Record<SessionMode, number>>;
+  bestLapSectorsByMode: Partial<Record<SessionMode, number[]>>;
+  bestLapTimeByMode: Partial<Record<SessionMode, number>>;
+  prevCarPos: Vec3 | null;
 }
 
 // Session-level best per sector across all drivers — reset on clearAll()
@@ -65,6 +118,7 @@ function getOrCreate(driverId: number): DriverSectorState {
       arcFraction: 0,
       bestLapSectorsByMode: {},
       bestLapTimeByMode: {},
+      prevCarPos: null,
     };
     driverStates.set(driverId, state);
   }
@@ -80,7 +134,10 @@ export function clearAll(): void {
   sessionBestSectors.length = 0;
 }
 
-export function getBestLapSectors(driverId: number, mode: SessionMode): number[] {
+export function getBestLapSectors(
+  driverId: number,
+  mode: SessionMode,
+): number[] {
   return driverStates.get(driverId)?.bestLapSectorsByMode[mode] ?? [];
 }
 
@@ -119,7 +176,10 @@ export function update(
       // Update personal and session bests
       for (let s = 0; s < sectorCount; s++) {
         const t = state.currentLapSectors[s];
-        if (state.personalBestSectors[s] === undefined || t < state.personalBestSectors[s]) {
+        if (
+          state.personalBestSectors[s] === undefined ||
+          t < state.personalBestSectors[s]
+        ) {
           state.personalBestSectors[s] = t;
         }
         if (sessionBestSectors[s] === undefined || t < sessionBestSectors[s]) {
@@ -130,7 +190,7 @@ export function update(
       if (mode && lastLaptime > 0 && lastLaptime < 600_000) {
         const prevBest = state.bestLapTimeByMode[mode];
         if (prevBest === undefined || lastLaptime < prevBest) {
-          state.bestLapTimeByMode[mode]  = lastLaptime;
+          state.bestLapTimeByMode[mode] = lastLaptime;
           state.bestLapSectorsByMode[mode] = [...state.currentLapSectors];
         }
       }
@@ -146,37 +206,78 @@ export function update(
 
   // ── sector crossing detection ──────────────────────────────────────────────
   if (state.currentSector < sectorBoundaries.length) {
-    const boundary = sectorBoundaries[state.currentSector];
-    const sd = signedDist(carPos, boundary);
+    // const boundary = sectorBoundaries[state.currentSector];
+    // const sd = signedDist(carPos, boundary);
 
-    if (state.prevSign === null) {
-      state.prevSign = sd;
-      state.prevLapT = currentLapT;
-    } else if (state.prevSign < 0 && sd >= 0) {
-      // Sub-packet interpolation: estimate exact crossing moment
-      const f = Math.abs(state.prevSign) / (Math.abs(state.prevSign) + sd);
-      const crossingLapT = (state.prevLapT ?? currentLapT) + f * (currentLapT - (state.prevLapT ?? currentLapT));
-      state.currentLapSectors.push(crossingLapT - state.sectorStartLapT);
-      state.sectorStartLapT = crossingLapT;
-      state.currentSector++;
-      state.prevSign = null;
-      state.prevLapT = null;
-    } else {
-      state.prevSign = sd;
-      state.prevLapT = currentLapT;
+    // if (state.prevSign === null) {
+    //   state.prevSign = sd;
+    //   state.prevLapT = currentLapT;
+    // } else if (state.prevSign < 0 && sd >= 0) {
+    //   // Sub-packet interpolation: estimate exact crossing moment
+    //   const f = Math.abs(state.prevSign) / (Math.abs(state.prevSign) + sd);
+    //   const crossingLapT = (state.prevLapT ?? currentLapT) + f * (currentLapT - (state.prevLapT ?? currentLapT));
+    //   state.currentLapSectors.push(crossingLapT - state.sectorStartLapT);
+    //   state.sectorStartLapT = crossingLapT;
+    //   state.currentSector++;
+    //   state.prevSign = null;
+    //   state.prevLapT = null;
+    // } else {
+    //   state.prevSign = sd;
+    //   state.prevLapT = currentLapT;
+    // }
+
+    // New algo
+    const boundary = sectorBoundaries[state.currentSector];
+
+    if (state.prevCarPos !== null && state.prevLapT !== null) {
+      // The actual finite sector gate.
+      //
+      // Unlike signedDist(), this cannot intersect another part of the
+      // track because it is limited to leftEdge -> rightEdge.
+      const movementFraction = segmentIntersectionXZ(
+        state.prevCarPos,
+        carPos,
+        boundary.leftEdge,
+        boundary.rightEdge,
+      );
+
+      if (movementFraction !== null) {
+        // Make sure we're crossing the gate in the correct direction.
+        //
+        // signedDist() is still useful here, but only for direction.
+        const prevDist = signedDist(state.prevCarPos, boundary);
+        const currentDist = signedDist(carPos, boundary);
+
+        // Expected direction: negative -> positive.
+        if (prevDist < 0 && currentDist >= 0) {
+          const crossingLapT =
+            state.prevLapT + movementFraction * (currentLapT - state.prevLapT);
+
+          state.currentLapSectors.push(crossingLapT - state.sectorStartLapT);
+
+          state.sectorStartLapT = crossingLapT;
+          state.currentSector++;
+        }
+      }
     }
+    state.prevLapT = currentLapT;
+    state.prevCarPos = carPos;
   }
 }
 
-export function getSectorStatus(driverId: number, sectorIndex: number): SectorStatus {
+export function getSectorStatus(
+  driverId: number,
+  sectorIndex: number,
+): SectorStatus {
   const state = driverStates.get(driverId);
-  if (!state || state.lastLapSectors[sectorIndex] === undefined) return 'neutral';
+  if (!state || state.lastLapSectors[sectorIndex] === undefined)
+    return "neutral";
 
-  const t           = state.lastLapSectors[sectorIndex];
+  const t = state.lastLapSectors[sectorIndex];
   const sessionBest = sessionBestSectors[sectorIndex];
   const personalBest = state.personalBestSectors[sectorIndex];
 
-  if (sessionBest !== undefined && t <= sessionBest) return 'purple';
-  if (personalBest !== undefined && t <= personalBest) return 'green';
-  return 'red';
+  if (sessionBest !== undefined && t <= sessionBest) return "purple";
+  if (personalBest !== undefined && t <= personalBest) return "green";
+  return "red";
 }

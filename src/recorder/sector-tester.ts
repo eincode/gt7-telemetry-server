@@ -1,7 +1,53 @@
 import * as readline from "readline";
 import type { StateBroadcast } from "../types";
-import type { ComputedTrack, Vec3, SectorBoundary } from "./types";
 import { connectOverlay } from "./overlay-client";
+import type { ComputedTrack, SectorBoundary, Vec3 } from "./types";
+
+// New changes -----
+
+function cross2(ax: number, az: number, bx: number, bz: number): number {
+  return ax * bz - az * bx;
+}
+
+/**
+ * Intersects two line segments in the XZ plane.
+ *
+ * Returns the fraction along segment AB where the intersection occurs,
+ * or null if the segments don't intersect.
+ */
+function segmentIntersectionXZ(
+  a: Vec3,
+  b: Vec3,
+  c: Vec3,
+  d: Vec3,
+): number | null {
+  const rX = b[0] - a[0];
+  const rZ = b[2] - a[2];
+
+  const sX = d[0] - c[0];
+  const sZ = d[2] - c[2];
+
+  const denom = cross2(rX, rZ, sX, sZ);
+
+  // Parallel / nearly parallel.
+  if (Math.abs(denom) < 1e-8) {
+    return null;
+  }
+
+  const cax = c[0] - a[0];
+  const caz = c[2] - a[2];
+
+  const t = cross2(cax, caz, sX, sZ) / denom;
+  const u = cross2(cax, caz, rX, rZ) / denom;
+
+  // t = position along telemetry movement A -> B
+  // u = position along sector gate C -> D
+  if (t < 0 || t > 1 || u < 0 || u > 1) {
+    return null;
+  }
+
+  return t;
+}
 
 // ── Vec3 math ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +128,7 @@ export function startSectorTester(opts: SectorTesterOpts): void {
   let prevLapCount: number | null = null;
   let prevSign: number | null = null;
   let prevLapT: number | null = null;
+  let prevCarPos: Vec3 | null = null;
   let currentLapT = 0;
   let bestLaptimeRef = 0;
   const lapHistory: LapResult[] = [];
@@ -258,33 +305,72 @@ export function startSectorTester(opts: SectorTesterOpts): void {
       prevLapCount = t.lapCount;
 
       // ── Sector crossing ────────────────────────────────────────────────────
+      // if (!inputMode && currentSector < sectorBoundaries.length) {
+      //   const boundary = sectorBoundaries[currentSector];
+      //   const sd = signedDist(carPos, boundary);
+
+      //   if (prevSign === null) {
+      //     prevSign = sd;
+      //     prevLapT = currentLapT;
+      //   } else if (prevSign < 0 && sd >= 0) {
+      //     // Interpolate the exact crossing moment within the inter-packet interval.
+      //     // At prevLapT the signed distance was prevSign (<0); now it's sd (≥0).
+      //     // The zero crossing happened at fraction f = |prevSign| / (|prevSign| + sd).
+      //     const f = Math.abs(prevSign) / (Math.abs(prevSign) + sd);
+      //     const crossingLapT =
+      //       (prevLapT ?? currentLapT) +
+      //       f * (currentLapT - (prevLapT ?? currentLapT));
+
+      //     lapSectors.push(crossingLapT - sectorStartLapT);
+      //     sectorStartLapT = crossingLapT;
+      //     currentSector++;
+      //     prevSign = null;
+      //     prevLapT = null;
+      //   } else {
+      //     prevSign = sd;
+      //     prevLapT = currentLapT;
+      //   }
+      // }
+
+      // New algo
       if (!inputMode && currentSector < sectorBoundaries.length) {
         const boundary = sectorBoundaries[currentSector];
-        const sd = signedDist(carPos, boundary);
 
-        if (prevSign === null) {
-          prevSign = sd;
-          prevLapT = currentLapT;
-        } else if (prevSign < 0 && sd >= 0) {
-          // Interpolate the exact crossing moment within the inter-packet interval.
-          // At prevLapT the signed distance was prevSign (<0); now it's sd (≥0).
-          // The zero crossing happened at fraction f = |prevSign| / (|prevSign| + sd).
-          const f = Math.abs(prevSign) / (Math.abs(prevSign) + sd);
-          const crossingLapT =
-            (prevLapT ?? currentLapT) +
-            f * (currentLapT - (prevLapT ?? currentLapT));
+        if (prevCarPos !== null && prevLapT !== null) {
+          // The actual finite sector gate.
+          //
+          // Unlike signedDist(), this cannot intersect another part of the
+          // track because it is limited to leftEdge -> rightEdge.
+          const movementFraction = segmentIntersectionXZ(
+            prevCarPos,
+            carPos,
+            boundary.leftEdge,
+            boundary.rightEdge,
+          );
 
-          lapSectors.push(crossingLapT - sectorStartLapT);
-          sectorStartLapT = crossingLapT;
-          currentSector++;
-          prevSign = null;
-          prevLapT = null;
-        } else {
-          prevSign = sd;
-          prevLapT = currentLapT;
+          if (movementFraction !== null) {
+            // Make sure we're crossing the gate in the correct direction.
+            //
+            // signedDist() is still useful here, but only for direction.
+            const prevDist = signedDist(prevCarPos, boundary);
+            const currentDist = signedDist(carPos, boundary);
+
+            // Expected direction: negative -> positive.
+            if (prevDist < 0 && currentDist >= 0) {
+              const crossingLapT =
+                prevLapT + movementFraction * (currentLapT - prevLapT);
+
+              lapSectors.push(crossingLapT - sectorStartLapT);
+
+              sectorStartLapT = crossingLapT;
+              currentSector++;
+            }
+          }
         }
       }
 
+      prevLapT = currentLapT;
+      prevCarPos = carPos;
       render();
     },
     (err) => {

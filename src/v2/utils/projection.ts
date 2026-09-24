@@ -59,17 +59,35 @@ export function projectToTrack(
   ruler: TrackRuler,
   carPosition: Vec3,
   hintIndex: number,
+  expectedDistance: number = -1, // lastDistanceAlongLap + speed * dt
 ): Projection {
   const n = ruler.segmentCount;
 
   let bestIndex = -1;
   let bestFraction = 0;
+  let bestScore = Infinity;
   let bestPerpSquared = Infinity;
 
   const consider = (i: number) => {
     const r = projectOntoSegment(ruler, i, carPosition);
-    if (r.perpDistanceSquared < bestPerpSquared) {
-      bestPerpSquared = r.perpDistanceSquared;
+    let score = r.perpDistanceSquared;
+
+    if (expectedDistance >= 0) {
+      const candidateS =
+        ruler.cumulativeDistance[i] +
+        r.fractionAlongSegment * ruler.segmentLength(i);
+
+      let delta = candidateS - expectedDistance;
+      const L = ruler.trackLength;
+      if (delta > L / 2) delta -= L;
+      else if (delta < -L / 2) delta += L;
+
+      score += delta * delta;
+    }
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestPerpSquared = r.perpDistanceSquared; // reported, not compared
       bestFraction = r.fractionAlongSegment;
       bestIndex = i;
     }
@@ -142,4 +160,39 @@ export function calibrateLateralSign(ruler: TrackRuler, track: TrackJson) {
   console.log(
     `[track ${ruler.trackId}] lateralSign calibrated to ${ruler.lateralSign}`,
   );
+}
+
+/**
+ * Call once per track, after constructing the ruler. Projects every sector
+ * boundary onto the centerline so a driver's sector is a lookup on the
+ * distanceAlongLap we already compute, instead of a per-packet plane test.
+ */
+export function calibrateSectors(ruler: TrackRuler, track: TrackJson) {
+  const boundaries = track.sectorBoundaries;
+  if (!boundaries?.length) {
+    console.warn(
+      `[track ${ruler.trackId}] no sector boundaries — sector stays 0`,
+    );
+    return;
+  }
+
+  // Boundary positions sit on the ideal line, not the centerline, so project
+  // rather than trusting arcFraction. Sorted because sectorAt() walks in order.
+  const distances = boundaries
+    .map((b) => projectToTrack(ruler, b.position as Vec3, -1).distanceAlongLap)
+    .sort((a, b) => a - b);
+
+  ruler.sectorBoundaryDistances = Float64Array.from(distances);
+
+  console.log(
+    `[track ${ruler.trackId}] ${ruler.sectorCount} sectors, boundaries at ` +
+      distances.map((d) => `${d.toFixed(1)} m`).join(", "),
+  );
+
+  if (track.sectorCount && track.sectorCount !== ruler.sectorCount) {
+    console.warn(
+      `[track ${ruler.trackId}] track declares ${track.sectorCount} sectors, ` +
+        `but ${boundaries.length} boundaries give ${ruler.sectorCount}`,
+    );
+  }
 }
