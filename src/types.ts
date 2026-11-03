@@ -87,12 +87,21 @@ export interface Derived {
   pitted: boolean;
 }
 
+/**
+ * racing   — leader not yet on the final lap (always this outside race mode)
+ * finalLap — leader is on the final lap
+ * finished — chequered flag: at least one driver has crossed the line; the
+ *            rest are completing their final lap (see StandingsRow.finished)
+ */
+export type RacePhase = "racing" | "finalLap" | "finished";
+
 export interface RaceState {
   mode: SessionMode;
   trackId: string | null;
   sectorCount: number;
-  lap: number;
+  lap: number; // leader's lap, clamped to totalLaps
   totalLaps: number;
+  phase: RacePhase;
   dayProgression: number;
   order: number[]; // driver IDs sorted by rank (index 0 = rank 1)
 }

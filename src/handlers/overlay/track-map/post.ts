@@ -1,0 +1,13 @@
+import type { Request, Response } from "express";
+import * as overlayState from "../../../overlay-state";
+
+export default function handler(req: Request, res: Response) {
+  const { visible } = req.body as { visible?: unknown };
+  if (visible !== undefined && typeof visible !== "boolean") {
+    res.status(400).json({ error: "visible must be a boolean" });
+    return;
+  }
+  const patch: Parameters<typeof overlayState.setTrackMap>[0] = {};
+  if (visible !== undefined) patch.visible = visible as boolean;
+  res.json({ ok: true, overlayState: overlayState.setTrackMap(patch) });
+}

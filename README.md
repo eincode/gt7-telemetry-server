@@ -239,7 +239,8 @@ Read the current overlay visibility state.
   "sector": { "visible": false, "driverIds": [] },
   "carTelemetry": { "visible": false, "driverIds": [] },
   "driverShowcase": { "visible": false, "driverId": null },
-  "driverTelemetry": { "visible": false, "driverId": null }
+  "driverTelemetry": { "visible": false, "driverId": null },
+  "trackMap": { "visible": false }
 }
 ```
 
@@ -265,7 +266,8 @@ Toggle the standings overlay. All fields are optional — only the fields includ
     "sector": { "visible": false, "driverIds": [] },
     "carTelemetry": { "visible": false, "driverIds": [] },
     "driverShowcase": { "visible": false, "driverId": null },
-    "driverTelemetry": { "visible": false, "driverId": null }
+    "driverTelemetry": { "visible": false, "driverId": null },
+    "trackMap": { "visible": false }
   }
 }
 ```
@@ -357,6 +359,42 @@ Toggle the driver telemetry overlay and optionally set which driver to feature. 
 
 **Response `200`** — same shape as `POST /overlay/standings`.
 **Response `400`** — `driverId` is not a number or null.
+
+---
+
+### `POST /overlay/track-map`
+
+Toggle the track map overlay, which draws the active track and every driver's live position with a short-name label.
+
+**Request body**
+
+```json
+{ "visible": true }
+```
+
+**Response `200`** — same shape as `POST /overlay/standings`.
+**Response `400`** — `visible` is not a boolean.
+
+---
+
+### `GET /tracks/:id/map`
+
+Top-down geometry for one layout, projected to `[x, z]` world metres and rounded to 0.1 m. `id` is a layout id from `GET /tracks`.
+
+**Response `200`**
+
+```json
+{
+  "id": "suzuka",
+  "centerline": [[543, -149.6], ...],
+  "leftEdge": [[...], ...],
+  "rightEdge": [[...], ...],
+  "sectorBoundaries": [[409.3, 29.5], ...],
+  "sectors": [{ "left": [403.9, 27.5], "right": [411.8, 30.4] }, ...]
+}
+```
+
+**Response `400`** — invalid id. **Response `404`** — no `tracks/<id>/track.json`.
 
 ---
 
@@ -455,6 +493,7 @@ Sent at `BROADCAST_HZ` (default 60 Hz).
     carTelemetry:   { visible: boolean; driverIds: number[] };
     driverShowcase: { visible: boolean; driverId: number | null };
     driverTelemetry: { visible: boolean; driverId: number | null };
+    trackMap:       { visible: boolean };
   };
 }
 ```

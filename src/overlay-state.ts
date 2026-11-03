@@ -5,6 +5,7 @@ import type {
   CarTelemetryOverlay,
   DriverShowcaseOverlay,
   DriverTelemetryOverlay,
+  TrackMapOverlay,
 } from './types';
 
 // ── Singleton state ───────────────────────────────────────────────────────────
@@ -15,6 +16,7 @@ let _state: OverlayState = {
   carTelemetry:   { visible: false, driverIds: [] },
   driverShowcase: { visible: false, driverId: null },
   driverTelemetry: { visible: false, driverId: null },
+  trackMap:       { visible: false },
 };
 
 // ── Snapshot (deep-enough copy to prevent external mutation) ──────────────────
@@ -26,6 +28,7 @@ export function getOverlayState(): OverlayState {
     carTelemetry:   { ..._state.carTelemetry, driverIds: [..._state.carTelemetry.driverIds] },
     driverShowcase: { ..._state.driverShowcase },
     driverTelemetry: { ..._state.driverTelemetry },
+    trackMap:       { ..._state.trackMap },
   };
 }
 
@@ -61,5 +64,10 @@ export function setDriverShowcase(patch: Partial<DriverShowcaseOverlay>): Overla
 
 export function setDriverTelemetry(patch: Partial<DriverTelemetryOverlay>): OverlayState {
   _state.driverTelemetry = { ..._state.driverTelemetry, ...patch };
+  return getOverlayState();
+}
+
+export function setTrackMap(patch: Partial<TrackMapOverlay>): OverlayState {
+  _state.trackMap = { ..._state.trackMap, ...patch };
   return getOverlayState();
 }

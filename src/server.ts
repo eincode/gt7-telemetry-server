@@ -21,6 +21,7 @@ import healthGet from "./handlers/health/get";
 import overlayCarTelemetryPost from "./handlers/overlay/car-telemetry/post";
 import overlayDriverShowcasePost from "./handlers/overlay/driver-showcase/post";
 import overlayDriverTelemetryPost from "./handlers/overlay/driver-telemetry/post";
+import overlayTrackMapPost from "./handlers/overlay/track-map/post";
 import overlayGet from "./handlers/overlay/get";
 import overlaySectorPost from "./handlers/overlay/sector/post";
 import overlayStandingsPost from "./handlers/overlay/standings/post";
@@ -31,6 +32,7 @@ import sessionModePost from "./handlers/session/mode/post";
 import sessionPost from "./handlers/session/post";
 import sessionTrackPost from "./handlers/session/track/post";
 import tracksGet from "./handlers/tracks/get";
+import trackMapGet from "./handlers/tracks/map/get";
 import { startMockSimulation } from "./mock";
 import * as session from "./session";
 import { loadTrack } from "./track";
@@ -77,12 +79,14 @@ app.post("/overlay/sector", overlaySectorPost);
 app.post("/overlay/car-telemetry", overlayCarTelemetryPost);
 app.post("/overlay/driver-showcase", overlayDriverShowcasePost);
 app.post("/overlay/driver-telemetry", overlayDriverTelemetryPost);
+app.post("/overlay/track-map", overlayTrackMapPost);
 
 app.get("/recorder", recorderGet);
 
 app.get("/drivers", driversGet);
 
 app.get("/tracks", tracksGet);
+app.get("/tracks/:id/map", trackMapGet);
 
 app.get("/assets/*", assetsGet);
 
@@ -211,11 +215,13 @@ httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(
     `    POST /overlay/driver-telemetry toggle driver telemetry overlay  (+ driverId)`,
   );
+  console.log(`    POST /overlay/track-map  toggle track map with driver positions`);
   console.log("");
   console.log("  Utilities");
   console.log(`    GET  /recorder          recording session setup page`);
   console.log(`    GET  /health            server status`);
   console.log(`    GET  /tracks            list of available tracks`);
+  console.log(`    GET  /tracks/:id/map    top-down outline for a layout`);
   console.log(`    GET  /assets/*          static files (track images, etc.)`);
 
   if (MOCK) {
