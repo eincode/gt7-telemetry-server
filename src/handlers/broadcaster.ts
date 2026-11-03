@@ -20,7 +20,7 @@ export function startBroadcastLoop(broadcastHz: number) {
     );
 
     standingsV2 = gapEngine?.standings(driverMap) ?? [];
-  }, 100);
+  }, 1000);
   setInterval(
     () => {
       if (clientCount() === 0) return;
