@@ -8,7 +8,14 @@ function cross2(ax: number, az: number, bx: number, bz: number): number {
 }
 
 /**
- * Intersects two line segments in the XZ plane.
+ * Gates are cut at the tarmac edges (some only ~6 m wide), so a car on a kerb
+ * or running wide passes beside them. Each end is stretched by this, in metres.
+ */
+const GATE_MARGIN_M = 8;
+
+/**
+ * Intersects segment AB (car movement) with gate CD in the XZ plane, the gate
+ * widened by GATE_MARGIN_M at each end.
  *
  * Returns the fraction along segment AB where the intersection occurs,
  * or null if the segments don't intersect.
@@ -39,8 +46,10 @@ function segmentIntersectionXZ(
   const u = cross2(cax, caz, rX, rZ) / denom;
 
   // t = position along telemetry movement A -> B
-  // u = position along sector gate C -> D
-  if (t < 0 || t > 1 || u < 0 || u > 1) {
+  // u = position along sector gate C -> D (0–1 = on tarmac)
+  const gateLen = Math.hypot(sX, sZ);
+  const pad = gateLen > 0 ? GATE_MARGIN_M / gateLen : 0;
+  if (t < 0 || t > 1 || u < -pad || u > 1 + pad) {
     return null;
   }
 
