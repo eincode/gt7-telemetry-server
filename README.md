@@ -439,8 +439,11 @@ Sent at `BROADCAST_HZ` (default 60 Hz).
     mode:           "race" | "qualifying" | "practice";
     trackId:        string | null;   // matches TRACK_ID env var, null if no track loaded
     sectorCount:    number;
-    lap:            number;          // current lap of the rank-1 driver
+    lap:            number;          // current lap of the rank-1 driver, clamped to totalLaps
     totalLaps:      number;
+    phase:          "racing" | "finalLap" | "finished";
+                                     // finished = chequered flag (first driver has crossed the line);
+                                     // always "racing" outside race mode
     dayProgression: number;          // 0.0–1.0
     order:          number[];        // driver IDs sorted by rank (index 0 = P1)
     // rank order and gap logic differ by mode — see table below

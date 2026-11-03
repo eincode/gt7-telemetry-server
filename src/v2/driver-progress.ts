@@ -14,6 +14,15 @@ export interface GapPacket {
   totalLaps: number;
 }
 
+/**
+ * GT7 reports lapCount === totalLaps for the whole final lap and bumps it to
+ * totalLaps + 1 on the line, so finished means strictly greater.
+ * lapCount, not currentLap — currentLap is the running lap time in ms.
+ */
+export function hasFinishedRace(lapCount: number, totalLaps: number): boolean {
+  return totalLaps > 0 && lapCount > totalLaps;
+}
+
 export class DriverProgress {
   readonly driverId: string;
 
@@ -50,7 +59,17 @@ export class DriverProgress {
     this.history = new HistoryBuffer(ruler.trackLength);
   }
 
-  update(packet: GapPacket, timestamp: number, mode: SessionMode): void {
+  /**
+   * @param leaderFinished someone has already taken the chequered flag. GT7
+   *   ends the race for everyone else at their next line crossing, even a
+   *   lapped car that never reaches lapCount > totalLaps.
+   */
+  update(
+    packet: GapPacket,
+    timestamp: number,
+    mode: SessionMode,
+    leaderFinished = false,
+  ): void {
     if (this.finished) return; // freeze — ignore the cooldown lap entirely
     const dt = timestamp - this.lastTimestamp;
     const expected =
@@ -80,6 +99,8 @@ export class DriverProgress {
     if (!this.armed) {
       if (this.lastLapCount >= 0 && packet.lapCount > this.lastLapCount) {
         this.armed = true;
+        this.armedAtLapCount = packet.lapCount;
+        this.crossedLineAt = timestamp; // GapEngine starts the race clock from this
         this.totalDistance = 0;
         this.history.clear();
         console.log(`[${this.driverId}] armed at lap ${packet.lapCount}`);
@@ -90,6 +111,7 @@ export class DriverProgress {
       this.lastSpeed = packet.speed;
       return;
     }
+    const crossedLine = packet.lapCount > this.lastLapCount;
     this.lastLapCount = packet.lapCount;
 
     // --- accumulate --------------------------------------------------------
@@ -134,11 +156,10 @@ export class DriverProgress {
       this.untrustworthyCount++;
     }
 
-    const currentLap = packet.currentLap ?? packet.lapCount;
     if (
       mode === "race" &&
-      packet.totalLaps > 0 &&
-      currentLap > packet.totalLaps
+      (hasFinishedRace(packet.lapCount, packet.totalLaps) ||
+        (leaderFinished && crossedLine))
     ) {
       this.finished = true;
 

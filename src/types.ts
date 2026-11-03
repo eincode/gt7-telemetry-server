@@ -138,6 +138,7 @@ export interface DriverTelemetry {
   position: [number, number, number];
   currentLap: number;
   steeringAngle: number;
+  wheelRotation: number; // raw from PacketB (radians); 0 when the client doesn't send it
 }
 
 // Per-driver payload sent to overlay

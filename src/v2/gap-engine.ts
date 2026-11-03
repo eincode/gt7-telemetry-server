@@ -11,6 +11,9 @@ export interface StandingsRow {
   gapSeconds: number | null;
   gapMetres: number | null;
   totalTime: number | null;
+  finished: boolean;
+  /** Whole laps behind the leader, by distance. 0 for the leader and anyone on the lead lap. */
+  lapsDown: number;
 }
 
 export class GapEngine {
@@ -35,7 +38,7 @@ export class GapEngine {
     const wasArmed = progress.armed;
     const wasFinished = progress.finished;
 
-    progress.update(packet, timestamp, mode);
+    progress.update(packet, timestamp, mode, this.finishCounter > 0);
 
     if (
       !wasArmed &&
@@ -56,6 +59,15 @@ export class GapEngine {
     if (this.raceStartTime === null || !progress.armed) return null;
     const end = progress.finishTime ?? progress.lastTimestamp;
     return end - this.raceStartTime;
+  }
+
+  /** Whole laps between the leader and this driver. Finished drivers have their
+   *  distance snapped to a lap multiple, so the epsilon only absorbs float error. */
+  lapsDownFor(leader: DriverProgress, behind: DriverProgress): number {
+    if (!leader.armed || !behind.armed) return 0;
+    const L = this.ruler.trackLength;
+    const laps = Math.floor((leader.totalDistance - behind.totalDistance) / L + 1e-6);
+    return Math.max(0, laps);
   }
 
   /** Call on the standings refresh, 5–10 Hz. NOT at 60 Hz. */
@@ -89,6 +101,8 @@ export class GapEngine {
           gapSeconds: null,
           gapMetres: null,
           totalTime: this.totalTimeFor(behind),
+          finished: behind.finished,
+          lapsDown: 0,
         });
         continue;
       }
@@ -130,6 +144,8 @@ export class GapEngine {
         gapSeconds,
         gapMetres,
         totalTime: this.totalTimeFor(behind),
+        finished: behind.finished,
+        lapsDown: this.lapsDownFor(ordered[0], behind),
       });
     }
 

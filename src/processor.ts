@@ -1,9 +1,11 @@
 import type { DriverState } from "./drivers";
 import * as sectorTracker from "./sector-tracker";
+import { hasFinishedRace } from "./v2/driver-progress";
 import { getTrack } from "./track";
 import type {
   Derived,
   DriverBroadcast,
+  RacePhase,
   RaceState,
   SectorStatus,
   SessionMode,
@@ -36,9 +38,10 @@ function raceScore(d: DriverState): number {
 }
 
 function isFinished(d: DriverState): boolean {
-  const lapCount = d.telemetry?.lapCount ?? 0;
-  const totalLaps = d.telemetry?.totalLaps ?? 0;
-  return totalLaps > 0 && lapCount >= totalLaps;
+  return hasFinishedRace(
+    d.telemetry?.lapCount ?? 0,
+    d.telemetry?.totalLaps ?? 0,
+  );
 }
 
 // Sort the connected+telemetry drivers by the correct criterion for the mode.
@@ -202,13 +205,32 @@ export function buildRaceState(
   };
 
   if (!leader?.telemetry) {
-    return { ...base, lap: 0, totalLaps: 0, dayProgression: 0, order: [] };
+    return {
+      ...base,
+      lap: 0,
+      totalLaps: 0,
+      phase: "racing",
+      dayProgression: 0,
+      order: [],
+    };
+  }
+
+  const { lapCount, totalLaps } = leader.telemetry;
+
+  // Any driver, not just the connected leader — a finisher who drops off
+  // mustn't take the chequered flag back in with them.
+  let phase: RacePhase = "racing";
+  if (mode === "race" && totalLaps > 0) {
+    if (drivers.some(isFinished)) phase = "finished";
+    else if (lapCount === totalLaps) phase = "finalLap";
   }
 
   return {
     ...base,
-    lap: leader.telemetry.lapCount,
-    totalLaps: leader.telemetry.totalLaps,
+    // GT7 reports totalLaps + 1 after the line; never show "Lap 6/5".
+    lap: totalLaps > 0 ? Math.min(lapCount, totalLaps) : lapCount,
+    totalLaps,
+    phase,
     dayProgression: leader.telemetry.dayProgression,
     order: sorted.map((d) => d.id),
   };
