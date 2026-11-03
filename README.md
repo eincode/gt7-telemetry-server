@@ -404,6 +404,103 @@ Returns an HTML page with a **Start recording session** button. Opens in any bro
 
 ---
 
+## Run recording & replay
+
+Record your own 5-lap time-trial runs (e.g. one per tyre compound), then replay them together as a race — one driver per run — so you can test overlays without other people driving live. Replayed packets go through the same pipeline as live WebSocket packets (driver state, gap engine, sector tracker).
+
+**Workflow**
+
+1. Create a session on the track and connect your client as usual (`POST /session`, `POST /driver/join`).
+2. `POST /recordings/arm { "driverId": 1, "label": "RS" }`, then drive in GT7 Time Trial.
+3. Recording starts at your first start-line crossing (the out-lap is dropped) and saves automatically when lap 5 is complete. Paused-game frames are skipped and removed from the timeline. Anything you drive afterwards is ignored.
+4. Re-arm with the next label (`RM`, `RH`, …) and repeat. Re-using a label overwrites that run.
+5. `POST /replay/start { "trackId": "tsukuba", "runs": ["RS", "RM", "RH"] }`.
+
+Runs are saved as compact JSON at `recordings/<trackId>/<label>.json` (all raw packets plus ~2 s of pre-roll before the line, roughly 1–2 KB per packet at 60 Hz).
+
+**Replay behaviour**
+
+- Creates a fresh **race** session; roster ids are `1…N` in the order of `runs`, names are the labels. The first run starts on pole.
+- Flying start: each driver crosses the line `staggerMs` after the one ahead (default `300`).
+- Time-trial packets are rewritten into race packets: `lapCount` `0` before the line, `1…5` during the race, `6` once finished; `totalLaps` `5`; `lastLaptime`/`bestLaptime` recomputed from the run; `RaceStartPosition`/`preRaceNumCars` set from the replay's live order.
+- Plays once at 1×. Finished drivers hold their final packet. Creating or ending a session stops the replay.
+- Unavailable while `MOCK=true`. Arming a recording is refused while a replay is running.
+
+### `POST /recordings/arm`
+
+```json
+{ "driverId": 1, "label": "RS" }
+```
+
+`label`: letters, digits, `-` and `_` only. The run is stored under the active session's `trackId`. Re-arming the same driver restarts it.
+
+**Response `201`** — `{ "armed": ArmedStatus }`
+**Response `400`** — no session / invalid label · **`404`** — driver not in roster · **`409`** — replay running
+
+### `POST /recordings/cancel`
+
+`{ "driverId": 1 }` cancels one driver's armed or in-progress run; an empty body cancels all.
+
+**Response `200`** — `{ "ok": true, "cancelled": 1 }` · **`404`** — driver is not armed
+
+### `GET /recordings`
+
+Armed drivers and saved runs. Optional `?trackId=` filter.
+
+```json
+{
+  "armed": [
+    { "driverId": 1, "label": "RM", "trackId": "tsukuba", "phase": "recording", "lap": 3, "elapsedMs": 128400 }
+  ],
+  "runs": {
+    "tsukuba": [
+      { "label": "RS", "laps": 5, "driverId": 1, "recordedAt": "…", "durationMs": 301230, "lapTimesMs": [60120, 60050, 60310, 60400, 60350], "packetCount": 18074 }
+    ]
+  }
+}
+```
+
+`phase` is `waiting` until the line crossing, then `recording`.
+
+### `POST /replay/start`
+
+```json
+{ "trackId": "tsukuba", "runs": ["RS", "RM", "RH"], "staggerMs": 300 }
+```
+
+| Field       | Type       | Notes                                                    |
+| ----------- | ---------- | -------------------------------------------------------- |
+| `trackId`   | `string`   | Required. Must have a `track.json` and saved recordings. |
+| `runs`      | `string[]` | Required. 1–16 distinct labels.                          |
+| `staggerMs` | `number`   | Optional, `0`–`10000`. Default `300`.                    |
+
+**Response `201`** — `{ "session": Session, "replay": ReplayStatus }`
+**Response `400`** — invalid input, missing recording, or track not found · **`409`** — `MOCK=true`
+
+### `GET /replay`
+
+```json
+{
+  "state": "running",
+  "trackId": "tsukuba",
+  "staggerMs": 300,
+  "elapsedMs": 42000,
+  "drivers": [
+    { "id": 1, "label": "RS", "lap": 3, "position": 1, "finished": false, "lapTimesMs": [60120, 60050, 60310, 60400, 60350] }
+  ]
+}
+```
+
+`state` is `idle`, `running`, or `finished`.
+
+### `POST /replay/stop`
+
+Stops playback and marks replay drivers disconnected. The session stays.
+
+**Response `200`** — `{ "ok": true, "stopped": true }`
+
+---
+
 ## WebSocket
 
 ### `/driver?token=<token>`

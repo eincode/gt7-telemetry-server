@@ -26,6 +26,12 @@ import overlayGet from "./handlers/overlay/get";
 import overlaySectorPost from "./handlers/overlay/sector/post";
 import overlayStandingsPost from "./handlers/overlay/standings/post";
 import recorderGet from "./handlers/recorder/get";
+import recordingsArmPost from "./handlers/recordings/arm/post";
+import recordingsCancelPost from "./handlers/recordings/cancel/post";
+import recordingsGet from "./handlers/recordings/get";
+import replayGet from "./handlers/replay/get";
+import replayStartPost from "./handlers/replay/start/post";
+import replayStopPost from "./handlers/replay/stop/post";
 import sessionDelete from "./handlers/session/delete";
 import sessionGet from "./handlers/session/get";
 import sessionModePost from "./handlers/session/mode/post";
@@ -82,6 +88,16 @@ app.post("/overlay/driver-telemetry", overlayDriverTelemetryPost);
 app.post("/overlay/track-map", overlayTrackMapPost);
 
 app.get("/recorder", recorderGet);
+
+// ── Run recording & replay ────────────────────────────────────────────────────
+
+app.get("/recordings", recordingsGet);
+app.post("/recordings/arm", recordingsArmPost);
+app.post("/recordings/cancel", recordingsCancelPost);
+
+app.get("/replay", replayGet);
+app.post("/replay/start", replayStartPost);
+app.post("/replay/stop", replayStopPost);
 
 app.get("/drivers", driversGet);
 
@@ -216,6 +232,14 @@ httpServer.listen(PORT, "0.0.0.0", () => {
     `    POST /overlay/driver-telemetry toggle driver telemetry overlay  (+ driverId)`,
   );
   console.log(`    POST /overlay/track-map  toggle track map with driver positions`);
+  console.log("");
+  console.log("  Run recording & replay");
+  console.log(`    GET  /recordings        armed drivers + saved runs per track`);
+  console.log(`    POST /recordings/arm    record driverId's next 5 laps as <label>`);
+  console.log(`    POST /recordings/cancel cancel an armed/in-progress recording`);
+  console.log(`    GET  /replay            replay status`);
+  console.log(`    POST /replay/start      replay saved runs as a race (trackId, runs)`);
+  console.log(`    POST /replay/stop       stop the running replay`);
   console.log("");
   console.log("  Utilities");
   console.log(`    GET  /recorder          recording session setup page`);
