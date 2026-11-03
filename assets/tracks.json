@@ -1,66 +1,330 @@
 [
   {
+    "id": "autopolis",
+    "name": "Autopolis International Racing Course",
+    "country": "Japan",
+    "imagePath": "/assets/track/autopolis.png",
+    "layouts": [
+      {
+        "id": "autopolis",
+        "name": "Full Course",
+        "totalLength": 4605,
+        "totalSectors": 3
+      },
+      {
+        "id": "autopolis-short",
+        "name": "Short Course",
+        "totalLength": 2981,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
     "id": "bb-raceway",
     "name": "BB Raceway",
     "country": "Japan",
-    "totalLength": 1683,
-    "totalSectors": 2,
-    "imagePath": "/assets/track/bb-raceway.png"
+    "imagePath": "/assets/track/bb-raceway.png",
+    "layouts": [
+      {
+        "id": "bb-raceway",
+        "name": "Full Course",
+        "totalLength": 1683,
+        "totalSectors": 2
+      }
+    ]
   },
   {
-    "id": "daytona-road-course",
-    "name": "Daytona Road Course",
-    "country": "United States",
-    "totalLength": 5702,
-    "totalSectors": 5,
-    "imagePath": "/assets/track/daytona-road-course.png"
-  },
-  {
-    "id": "brands-hatch-indy",
-    "name": "Brands Hatch Indy",
+    "id": "brands-hatch",
+    "name": "Brands Hatch",
     "country": "United Kingdom",
-    "totalLength": 1912,
-    "totalSectors": 3,
-    "imagePath": "/assets/track/brands-hatch-indy.png"
+    "imagePath": "/assets/track/brands-hatch-indy.png",
+    "layouts": [
+      {
+        "id": "brands-hatch-gp",
+        "name": "Grand Prix Circuit",
+        "totalLength": 3882,
+        "totalSectors": 5
+      },
+      {
+        "id": "brands-hatch-indy",
+        "name": "Indy Circuit",
+        "totalLength": 1912,
+        "totalSectors": 3
+      }
+    ]
   },
   {
-    "id": "laguna-seca",
-    "name": "WeatherTech Raceway Laguna Seca",
-    "country": "United States",
-    "totalLength": 3548,
-    "totalSectors": 3,
-    "imagePath": "/assets/track/laguna-seca.png"
-  },
-  {
-    "id": "nurburgring-gp",
-    "name": "Nürburgring GP",
-    "country": "Germany",
-    "totalLength": 5043,
-    "totalSectors": 4,
-    "imagePath": "/assets/track/nurburgring-gp.png"
-  },
-  {
-    "id": "spa-24h",
+    "id": "spa",
     "name": "Circuit de Spa-Francorchamps",
     "country": "Belgium",
-    "totalLength": 6921,
-    "totalSectors": 3,
-    "imagePath": "/assets/track/spa-24h.png"
+    "imagePath": "/assets/track/spa-24h.png",
+    "layouts": [
+      {
+        "id": "spa-24h",
+        "name": "24h Layout",
+        "totalLength": 6921,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "daytona",
+    "name": "Daytona International Speedway",
+    "country": "United States",
+    "imagePath": "/assets/track/daytona-road-course.png",
+    "layouts": [
+      {
+        "id": "daytona-road-course",
+        "name": "Road Course",
+        "totalLength": 5702,
+        "totalSectors": 5
+      }
+    ]
+  },
+  {
+    "id": "deep-forest",
+    "name": "Deep Forest Raceway",
+    "country": "Switzerland",
+    "imagePath": "/assets/track/deep-forest.png",
+    "layouts": [
+      {
+        "id": "deep-forest",
+        "name": "Full Course",
+        "totalLength": 4190,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "dragon-trail",
+    "name": "Dragon Trail",
+    "country": "Croatia",
+    "imagePath": "/assets/track/dragon-trail.png",
+    "layouts": [
+      {
+        "id": "dragon-trail-seaside",
+        "name": "Seaside",
+        "totalLength": 5153,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "fuji",
+    "name": "Fuji International Speedway",
+    "country": "Japan",
+    "imagePath": "/assets/track/fuji.png",
+    "layouts": [
+      {
+        "id": "fuji",
+        "name": "Full Course",
+        "totalLength": 4489,
+        "totalSectors": 3
+      },
+      {
+        "id": "fuji-no-chicane",
+        "name": "No Chicane",
+        "totalLength": 4478,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "grand-valley",
+    "name": "Grand Valley",
+    "country": "United States",
+    "imagePath": "/assets/track/grand-valley.png",
+    "layouts": [
+      {
+        "id": "grand-valley-highway",
+        "name": "Highway 1",
+        "totalLength": 5004,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "high-speed-ring",
+    "name": "High Speed Ring",
+    "country": "Japan",
+    "imagePath": "/assets/track/high-speed-ring.png",
+    "layouts": [
+      {
+        "id": "high-speed-ring",
+        "name": "Full Course",
+        "totalLength": 4326,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "kyoto",
+    "name": "Kyoto Driving Park",
+    "country": "Japan",
+    "imagePath": "/assets/track/kyoto.png",
+    "layouts": [
+      {
+        "id": "kyoto-yamagiwa",
+        "name": "Yamagiwa",
+        "totalLength": 4845,
+        "totalSectors": 4
+      },
+      {
+        "id": "kyoto-miyabi",
+        "name": "Miyabi",
+        "totalLength": 1923,
+        "totalSectors": 3
+      },
+      {
+        "id": "kyoto-yamagiwa-miyabi",
+        "name": "Yamagiwa+Miyabi",
+        "totalLength": 6748,
+        "totalSectors": 7
+      }
+    ]
+  },
+  {
+    "id": "mount-panorama",
+    "name": "Mount Panorama Motor Racing Circuit",
+    "country": "Australia",
+    "imagePath": "/assets/track/mount-panorama.png",
+    "layouts": [
+      {
+        "id": "bathurst",
+        "name": "Full Course",
+        "totalLength": 6164,
+        "totalSectors": 4
+      }
+    ]
+  },
+  {
+    "id": "nurburgring",
+    "name": "Nürburgring",
+    "country": "Germany",
+    "imagePath": "/assets/track/nurburgring-gp.png",
+    "layouts": [
+      {
+        "id": "nurburgring-gp",
+        "name": "Grand Prix",
+        "totalLength": 5043,
+        "totalSectors": 4
+      }
+    ]
+  },
+  {
+    "id": "red-bull-ring",
+    "name": "Red Bull Ring",
+    "country": "Austria",
+    "imagePath": "/assets/track/red-bull-ring.png",
+    "layouts": [
+      {
+        "id": "red-bull-ring",
+        "name": "Full Course",
+        "totalLength": 4280,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "sugo",
+    "name": "Sportsland SUGO",
+    "country": "Japan",
+    "imagePath": "/assets/track/sugo.png",
+    "layouts": [
+      {
+        "id": "sugo",
+        "name": "Full Course",
+        "totalLength": 3534,
+        "totalSectors": 4
+      }
+    ]
+  },
+  {
+    "id": "suzuka",
+    "name": "Suzuka Circuit",
+    "country": "Japan",
+    "imagePath": "/assets/track/suzuka.png",
+    "layouts": [
+      {
+        "id": "suzuka",
+        "name": "Full Course",
+        "totalLength": 5757,
+        "totalSectors": 4
+      },
+      {
+        "id": "suzuka-east",
+        "name": "East Course",
+        "totalLength": 2207,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "tokyo-expressway",
+    "name": "Tokyo Expressway",
+    "country": "Japan",
+    "imagePath": "/assets/track/tokyo.png",
+    "layouts": [
+      {
+        "id": "tokyo-central-clockwise",
+        "name": "Central Outer Loop",
+        "totalLength": 4393,
+        "totalSectors": 4
+      },
+      {
+        "id": "tokyo-east-clockwise",
+        "name": "East Outer Loop",
+        "totalLength": 7261,
+        "totalSectors": 5
+      },
+      {
+        "id": "tokyo-south-counter-clockwise",
+        "name": "South Inner Loop",
+        "totalLength": 6494,
+        "totalSectors": 3
+      }
+    ]
   },
   {
     "id": "trial-mountain",
-    "name": "Trial Mountain",
+    "name": "Trial Mountain Circuit",
     "country": "Japan",
-    "totalLength": 5332,
-    "totalSectors": 3,
-    "imagePath": "/assets/track/trial-mountain.png"
+    "imagePath": "/assets/track/trial-mountain.png",
+    "layouts": [
+      {
+        "id": "trial-mountain",
+        "name": "Full Course",
+        "totalLength": 5332,
+        "totalSectors": 3
+      }
+    ]
   },
   {
     "id": "tsukuba",
     "name": "Tsukuba Circuit",
     "country": "Japan",
-    "totalLength": 2067,
-    "totalSectors": 3,
-    "imagePath": "/assets/track/tsukuba.png"
+    "imagePath": "/assets/track/tsukuba.png",
+    "layouts": [
+      {
+        "id": "tsukuba",
+        "name": "Full Course",
+        "totalLength": 2067,
+        "totalSectors": 3
+      }
+    ]
+  },
+  {
+    "id": "laguna-seca",
+    "name": "WeatherTech Raceway Laguna Seca",
+    "country": "United States",
+    "imagePath": "/assets/track/laguna-seca.png",
+    "layouts": [
+      {
+        "id": "laguna-seca",
+        "name": "Full Course",
+        "totalLength": 3548,
+        "totalSectors": 3
+      }
+    ]
   }
 ]
