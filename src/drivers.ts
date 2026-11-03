@@ -96,6 +96,7 @@ function extractTelemetry(p: DriverPacket): DriverTelemetry {
     position: p.position,
     currentLap: p.currentLap ?? 0,
     steeringAngle: (p.wheelSteeringAngle?.[0] ?? 0) * (180 / Math.PI) * 20,
+    wheelRotation: p.wheelRotation ?? 0,
   };
 }
 

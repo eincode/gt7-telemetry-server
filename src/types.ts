@@ -178,12 +178,17 @@ export interface DriverTelemetryOverlay {
   driverId: number | null;
 }
 
+export interface TrackMapOverlay {
+  visible: boolean;
+}
+
 export interface OverlayState {
   standings: StandingsOverlay;
   sector: SectorOverlay;
   carTelemetry: CarTelemetryOverlay;
   driverShowcase: DriverShowcaseOverlay;
   driverTelemetry: DriverTelemetryOverlay;
+  trackMap: TrackMapOverlay;
 }
 
 // ── Broadcasts ────────────────────────────────────────────────────────────────

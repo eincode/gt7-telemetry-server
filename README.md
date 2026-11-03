@@ -488,6 +488,7 @@ Sent at `BROADCAST_HZ` (default 60 Hz).
   // Controls
   throttle:           number;        // 0–255
   brake:              number;        // 0–255
+  wheelRotation:      number;        // radians, raw from PacketB; 0 if not sent
 
   // Fuel
   fuelLevel:          number;        // litres
