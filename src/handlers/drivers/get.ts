@@ -17,6 +17,7 @@ export default function handler(_req: Request, res: Response) {
         id: entry.id,
         name: entry.name,
         country: entry.country,
+        psnId: entry.psnId,
         carCode: d?.telemetry?.carCode ?? 0,
         connected: d?.connected ?? false,
         lastSeen: d?.lastSeen ?? 0,

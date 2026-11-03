@@ -25,10 +25,10 @@ const MOCK_MAGIC    = 0x47375330;
 // ── Mock roster ────────────────────────────────────────────────────────────────
 
 const MOCK_ROSTER: RosterEntry[] = [
-  { id: 1, name: 'Alex Martin',   country: 'GBR' },
-  { id: 2, name: 'Kenji Tanaka',  country: 'JPN' },
-  { id: 3, name: 'Sofia Russo',   country: 'ITA' },
-  { id: 4, name: 'Lars Eriksson', country: 'SWE' },
+  { id: 1, name: 'Alex Martin',   country: 'GBR', psnId: 'alex_martin' },
+  { id: 2, name: 'Kenji Tanaka',  country: 'JPN', psnId: 'kenji_tanaka' },
+  { id: 3, name: 'Sofia Russo',   country: 'ITA', psnId: 'sofia_russo' },
+  { id: 4, name: 'Lars Eriksson', country: 'SWE', psnId: 'lars_eriksson' },
 ];
 
 // carCodes for synthetic packets — not in the roster but needed to satisfy DriverPacket.carCode

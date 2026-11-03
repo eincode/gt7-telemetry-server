@@ -22,5 +22,5 @@ export default function handler(req: Request, res: Response) {
   }
 
   const token = drivers.registerDriver(driverId);
-  res.json({ token, driverId, name: entry.name });
+  res.json({ token, driverId, name: entry.name, psnId: entry.psnId });
 }

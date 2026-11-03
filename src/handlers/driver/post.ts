@@ -11,10 +11,11 @@ export default function handler(req: Request, res: Response) {
     return;
   }
 
-  const { id, name, country } = req.body as {
+  const { id, name, country, psnId } = req.body as {
     id?: unknown;
     name?: unknown;
     country?: unknown;
+    psnId?: unknown;
   };
   if (typeof id !== "number" || typeof name !== "string" || name.trim() === "") {
     res
@@ -35,6 +36,7 @@ export default function handler(req: Request, res: Response) {
     id,
     name,
     country: typeof country === "string" ? country : "",
+    psnId: typeof psnId === "string" ? psnId.trim() : "",
   };
   session.addDriver(entry);
   broadcast({ type: "roster", session: s, roster: s.roster });

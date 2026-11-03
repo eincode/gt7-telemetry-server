@@ -69,6 +69,7 @@ export interface RosterEntry {
   id: number;
   name: string;
   country: string;
+  psnId: string;
 }
 
 export type SectorStatus = "purple" | "green" | "red" | "neutral";

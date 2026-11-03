@@ -60,12 +60,18 @@ export default function handler(req: Request, res: Response) {
 
   drivers.clearDrivers();
   sectorTracker.clearAll();
+  const normalizedRoster: RosterEntry[] = roster.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    country: typeof entry.country === "string" ? entry.country : "",
+    psnId: typeof entry.psnId === "string" ? entry.psnId.trim() : "",
+  }));
   const s = session.createSession(
-    roster,
+    normalizedRoster,
     mode as SessionMode,
     trackId.trim(),
     isRecording === true,
   );
-  broadcast({ type: "roster", session: s, roster });
+  broadcast({ type: "roster", session: s, roster: s.roster });
   res.status(201).json({ session: s });
 }
