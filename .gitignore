@@ -11,3 +11,6 @@ dist-bundled
 release
 .env
 .pnp.*
+
+.DS_Store
+recordings/
