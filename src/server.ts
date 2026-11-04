@@ -15,6 +15,7 @@ import { startBroadcastLoop } from "./handlers/broadcaster";
 import driverDelete from "./handlers/driver/delete";
 import driverJoinPost from "./handlers/driver/join/post";
 import driverPost from "./handlers/driver/post";
+import directorCommandPost from "./handlers/director-command/post";
 import driverWssMessage from "./handlers/driverWebsocket/message";
 import driversGet from "./handlers/drivers/get";
 import healthGet from "./handlers/health/get";
@@ -40,6 +41,7 @@ import sessionTrackPost from "./handlers/session/track/post";
 import tracksGet from "./handlers/tracks/get";
 import trackMapGet from "./handlers/tracks/map/get";
 import { startMockSimulation } from "./mock";
+import * as serial from "./serial";
 import * as session from "./session";
 import { loadTrack } from "./track";
 
@@ -100,6 +102,10 @@ app.post("/replay/start", replayStartPost);
 app.post("/replay/stop", replayStopPost);
 
 app.get("/drivers", driversGet);
+
+// ── Director (PS5 camera keys over serial) ───────────────────────────────────
+
+app.post("/director-command", directorCommandPost);
 
 app.get("/tracks", tracksGet);
 app.get("/tracks/:id/map", trackMapGet);
@@ -241,6 +247,9 @@ httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`    POST /replay/start      replay saved runs as a race (trackId, runs)`);
   console.log(`    POST /replay/stop       stop the running replay`);
   console.log("");
+  console.log("  Director");
+  console.log(`    POST /director-command  tap a camera key on the PS5 via serial (key)`);
+  console.log("");
   console.log("  Utilities");
   console.log(`    GET  /recorder          recording session setup page`);
   console.log(`    GET  /health            server status`);
@@ -260,4 +269,7 @@ httpServer.listen(PORT, "0.0.0.0", () => {
     }
     startMockSimulation(BROADCAST_HZ);
   }
+
+  console.log("");
+  serial.start();
 });

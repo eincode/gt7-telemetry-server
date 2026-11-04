@@ -5,8 +5,9 @@ const common = {
   platform: 'node',
   target: 'node20',
   format: 'cjs',
-  // ws has optional native deps that don't exist in a packaged exe
-  external: ['bufferutil', 'utf-8-validate'],
+  // ws has optional native deps that don't exist in a packaged exe;
+  // serialport is native too and is loaded lazily (server runs without it)
+  external: ['bufferutil', 'utf-8-validate', 'serialport'],
 };
 
 await Promise.all([

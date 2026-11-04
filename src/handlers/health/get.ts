@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { clientCount } from "../../broadcaster";
 import * as drivers from "../../drivers";
+import * as serial from "../../serial";
 import * as session from "../../session";
 
 export default function handler(_req: Request, res: Response) {
@@ -13,5 +14,9 @@ export default function handler(_req: Request, res: Response) {
       connected: all.filter((d) => d.connected).length,
     },
     overlayClients: clientCount(),
+    serial: {
+      connected: serial.isConnected(),
+      path: serial.getPath(),
+    },
   });
 }

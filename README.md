@@ -21,6 +21,7 @@ TRACK_ID=tsukuba yarn mock        # simulated drivers on a real track layout
 | `BROADCAST_HZ` | `60`    | Overlay broadcast rate (1–60 Hz)                          |
 | `TRACK_ID`     | —       | Load a pre-calibrated track from `tracks/<id>/track.json` |
 | `MOCK`         | `false` | Set `true` to simulate 4 drivers without hardware         |
+| `SERIAL_PORT`  | auto    | Director Arduino serial port; on macOS auto-detects `/dev/cu.usbserial*` / `/dev/cu.wchusbserial*` |
 
 ---
 
@@ -44,9 +45,39 @@ Server status check.
     "total": 4,
     "connected": 3
   },
-  "overlayClients": 1
+  "overlayClients": 1,
+  "serial": {
+    "connected": true,
+    "path": "/dev/cu.usbserial-1110"
+  }
 }
 ```
+
+`serial.path` is the port last opened or attempted (`null` if no adapter has been found).
+
+---
+
+### `POST /director-command`
+
+Tap one key on the PS5 (GT7 spectator camera control). Writes a single byte at 115200 8N1 to the USB-to-serial adapter; the Arduino Pro Micro presses and releases the key. If the adapter is unplugged or the port closes, the server retries every 2 s.
+
+**Request body**
+
+```json
+{ "key": "z" }
+```
+
+`key` must be a single character from `1 2 3 4 5 6 7 8 9 0 q w e r t y g h j k l z x c v` (case-insensitive; sent lowercased).
+
+**Response `200`**
+
+```json
+{ "ok": true, "key": "z" }
+```
+
+**Response `400`** — missing, multi-character, or disallowed key (nothing is sent)
+
+**Response `503`** — `{ "ok": false, "error": "serial not connected" }`
 
 ---
 
