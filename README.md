@@ -18,7 +18,7 @@ TRACK_ID=tsukuba yarn mock        # simulated drivers on a real track layout
 | Variable       | Default | Description                                               |
 | -------------- | ------- | --------------------------------------------------------- |
 | `PORT`         | `3000`  | HTTP / WebSocket port                                     |
-| `BROADCAST_HZ` | `60`    | Overlay broadcast rate (1–60 Hz)                          |
+| `BROADCAST_HZ` | `20`    | Overlay broadcast rate (1–60 Hz)                          |
 | `TRACK_ID`     | —       | Load a pre-calibrated track from `tracks/<id>/track.json` |
 | `MOCK`         | `false` | Set `true` to simulate 4 drivers without hardware         |
 | `SERIAL_PORT`  | auto    | Director Arduino serial port; on macOS auto-detects `/dev/cu.usbserial*` / `/dev/cu.wchusbserial*` |
@@ -585,7 +585,7 @@ Sent once on overlay connect, and again whenever `POST /session` is called.
 
 #### `StateBroadcast`
 
-Sent at `BROADCAST_HZ` (default 60 Hz).
+Sent at `BROADCAST_HZ` (default 20 Hz).
 
 ```ts
 {

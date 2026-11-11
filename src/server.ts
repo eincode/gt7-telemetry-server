@@ -48,7 +48,7 @@ import { loadTrack } from "./track";
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const BROADCAST_HZ = Math.min(
   60,
-  Math.max(1, parseInt(process.env.BROADCAST_HZ ?? "60", 10)),
+  Math.max(1, parseInt(process.env.BROADCAST_HZ ?? "20", 10)),
 );
 const TRACK_ID = process.env.TRACK_ID;
 const MOCK = process.env.MOCK === "true";
