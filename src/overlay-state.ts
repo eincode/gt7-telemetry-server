@@ -11,7 +11,7 @@ import type {
 // ── Singleton state ───────────────────────────────────────────────────────────
 
 let _state: OverlayState = {
-  standings:      { visible: false },
+  standings:      { visible: false, source: 'game' },
   sector:         { visible: false, driverIds: [] },
   carTelemetry:   { visible: false, driverIds: [] },
   driverShowcase: { visible: false, driverId: null },

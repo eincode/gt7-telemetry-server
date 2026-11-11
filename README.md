@@ -279,13 +279,17 @@ Read the current overlay visibility state.
 
 ### `POST /overlay/standings`
 
-Toggle the standings overlay. All fields are optional — only the fields included in the body are updated.
+Toggle the standings overlay and choose where its order comes from. All fields are optional — only the fields included in the body are updated.
+
+- `source`: `"game"` (default) orders by the game-reported `standingsV2` positions; `"inferred"` orders by `raceState.order`.
 
 **Request body**
 
 ```json
-{ "visible": true }
+{ "visible": true, "source": "game" }
 ```
+
+**Response `400`** — `visible` is not a boolean, or `source` is not `"game"` or `"inferred"`.
 
 **Response `200`**
 
@@ -293,7 +297,7 @@ Toggle the standings overlay. All fields are optional — only the fields includ
 {
   "ok": true,
   "overlayState": {
-    "standings": { "visible": true },
+    "standings": { "visible": true, "source": "game" },
     "sector": { "visible": false, "driverIds": [] },
     "carTelemetry": { "visible": false, "driverIds": [] },
     "driverShowcase": { "visible": false, "driverId": null },

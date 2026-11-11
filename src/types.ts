@@ -161,8 +161,12 @@ export interface DriverBroadcast {
 
 // ── Overlay visibility state ──────────────────────────────────────────────────
 
+/** Standings order: "game" = standingsV2 positions, "inferred" = raceState.order. */
+export type StandingsSource = "game" | "inferred";
+
 export interface StandingsOverlay {
   visible: boolean;
+  source: StandingsSource;
 }
 
 /** 0 drivers = module hidden; 1 = single driver; 2 = side-by-side compare */
