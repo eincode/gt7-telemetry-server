@@ -1,5 +1,8 @@
 import type { Request, Response } from "express";
 import { broadcast } from "../../broadcaster";
+import * as drivers from "../../drivers";
+import * as packetRecorder from "../../replay/recorder";
+import * as sectorTracker from "../../sector-tracker";
 import * as session from "../../session";
 
 export default function handler(req: Request, res: Response) {
@@ -20,6 +23,9 @@ export default function handler(req: Request, res: Response) {
   }
 
   session.removeDriver(driverId);
+  drivers.removeDriver(driverId);
+  sectorTracker.clearDriver(driverId);
+  packetRecorder.cancel(driverId);
   broadcast({ type: "roster", session: s, roster: s.roster });
   res.json({ ok: true });
 }

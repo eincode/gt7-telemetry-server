@@ -138,6 +138,10 @@ export function getState(driverId: number): DriverSectorState | undefined {
   return driverStates.get(driverId);
 }
 
+export function clearDriver(driverId: number): void {
+  driverStates.delete(driverId);
+}
+
 export function clearAll(): void {
   driverStates.clear();
   sessionBestSectors.length = 0;

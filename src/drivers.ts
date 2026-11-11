@@ -104,6 +104,18 @@ export function getAllDrivers(): DriverState[] {
   return Array.from(drivers.values());
 }
 
+// Close the driver's socket, revoke their token and drop their state, so they
+// read as never-joined until they join again.
+export function removeDriver(driverId: number): void {
+  const d = drivers.get(driverId);
+  if (!d) return;
+  if (d.ws && d.ws.readyState === WebSocket.OPEN) {
+    d.ws.close(1000, "removed from session");
+  }
+  tokenToDriverId.delete(d.token);
+  drivers.delete(driverId);
+}
+
 export function clearDrivers(): void {
   for (const d of drivers.values()) {
     if (d.ws && d.ws.readyState === WebSocket.OPEN) {
