@@ -169,7 +169,7 @@ export class DriverProgress {
       const finishDistance = lapsCompleted * L;
 
       // Interpolate the real crossing time out of the buffer rather than using
-      // this packet's timestamp, which is up to 16 ms late.
+      // this packet's timestamp, which is up to ~50 ms late.
       this.finishTime = this.history.timeAt(finishDistance) ?? timestamp;
       this.totalDistance = finishDistance;
 

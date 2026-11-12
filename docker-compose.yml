@@ -5,7 +5,7 @@ services:
       - "3000:3000"
     environment:
       PORT: "3000"
-      BROADCAST_HZ: "60"
+      BROADCAST_HZ: "20"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]

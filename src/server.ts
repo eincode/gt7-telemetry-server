@@ -157,7 +157,9 @@ driverWss.on("connection", (ws: WebSocket, request: http.IncomingMessage) => {
   drivers.connectDriver(state, ws);
   console.log(`[driver] connected  id=${state.id}`);
 
-  ws.on("message", (data) => driverWssMessage(ws, state, data));
+  ws.on("message", (data, isBinary) =>
+    driverWssMessage(ws, state, data, isBinary),
+  );
 
   ws.on("close", () => {
     drivers.disconnectDriver(state);

@@ -451,7 +451,7 @@ Record your own 5-lap time-trial runs (e.g. one per tyre compound), then replay 
 4. Re-arm with the next label (`RM`, `RH`, …) and repeat. Re-using a label overwrites that run.
 5. `POST /replay/start { "trackId": "tsukuba", "runs": ["RS", "RM", "RH"] }`.
 
-Runs are saved as compact JSON at `recordings/<trackId>/<label>.json` (all raw packets plus ~2 s of pre-roll before the line, roughly 1–2 KB per packet at 60 Hz).
+Runs are saved as compact JSON at `recordings/<trackId>/<label>.json` (all raw packets plus ~2 s of pre-roll before the line, roughly 1–2 KB per packet at 20 Hz).
 
 **Replay behaviour**
 
@@ -542,7 +542,7 @@ Stops playback and marks replay drivers disconnected. The session stays.
 
 Driver telemetry input. Connect after obtaining a token from `POST /driver/join`.
 
-Send JSON frames matching the `DriverPacket` structure (mirrors the GT7 UDP telemetry format). The server uses the `position`, `currentLap`, `lapCount`, and `lastLaptime` fields for sector tracking.
+Send each GT7 UDP telemetry datagram from the PS5 as one **binary** frame, still encrypted, byte for byte. The server works out the packet version from the size (A = 296, B = 316, ~ = 344, C = 368 bytes), decrypts it with Salsa20, checks the `G7S0` magic, and parses it into a `DriverPacket` (floats rounded to 3 decimals). Packets are taken at ~20 Hz per driver (at least 42 ms apart); faster ones are discarded. Text frames, unknown sizes and packets that fail the magic check are dropped. The server uses the `position`, `currentLap`, `lapCount`, and `lastLaptime` fields for sector tracking.
 
 ```
 ws://localhost:3000/driver?token=3f4a1b2c-...

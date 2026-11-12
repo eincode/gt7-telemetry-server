@@ -23,7 +23,7 @@ export class GapEngine {
 
   constructor(private readonly ruler: TrackRuler) {}
 
-  /** Call on every packet, 60 Hz per driver. */
+  /** Call on every packet, ~20 Hz per driver. */
   onPacket(
     driverId: string,
     packet: GapPacket,

@@ -4,7 +4,8 @@ import { Vec3, clamp, distance3D } from "./utils/vec3";
 
 /** Worst-case speed used to size the projection search window. */
 const MAX_PLAUSIBLE_SPEED_MPS = 150;
-const PACKET_HZ = 60;
+/** Driver packet rate after the WebSocket receive cap (see driverWebsocket/message.ts). */
+const PACKET_HZ = 20;
 
 export interface TrackJson {
   id: string;
